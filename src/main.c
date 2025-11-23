@@ -15,7 +15,7 @@ char *read_file(const char *filepath) {
 
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
-    printf("[DEBUG] read_file: ftell returned length %ld\n", length);
+
     if (length < 0) {
         fprintf(stderr, "Could not determine file size for %s.\n", filepath);
         fclose(file);
@@ -33,7 +33,7 @@ char *read_file(const char *filepath) {
     fread(buffer, 1, length, file);
     buffer[length] = '\0';
     fclose(file);
-    printf("[DEBUG] read_file: '%s' loaded, length %ld\n", filepath, length);
+
     return buffer;
 }
 
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     if (source_code == NULL) {
         return 1;
     }
-    printf("[DEBUG] main: source_code address %p, length %zu\n", (void*)source_code, strlen(source_code));
+
 
     Lexer l;
     lexer_init(&l, source_code);

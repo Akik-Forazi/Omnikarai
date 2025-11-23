@@ -281,16 +281,9 @@ Token get_next_token(Lexer* l) {
         return l->pending_tokens[l->pending_count];
     }
 
-    if (l->at_bol) {
-        handle_indentation(l); // Call void function
-        if (l->pending_count > 0) { // Check if handle_indentation added tokens
-            l->pending_count--;
-            return l->pending_tokens[l->pending_count];
-        }
-        // If no tokens were added, proceed to tokenize l->ch
-    }
+    skip_inline_whitespace(l); // NEW POSITION
 
-    skip_inline_whitespace(l);
+    if (l->at_bol) {
 
     switch (l->ch) {
         case '=': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_EQ, "==")) : new_token(TOKEN_ASSIGN, "="); break;
