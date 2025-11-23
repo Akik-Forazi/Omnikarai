@@ -1,0 +1,23 @@
+# This file tests the new lexer capabilities.
+use os;
+
+let name: string = "Omnikarai";
+let version = 1;
+
+if version == 1 {
+    print("First version!");
+} else {
+    print("Newer version.");
+}
+
+if 5 != 10 {
+    let five = 5;
+}
+
+for i in 0..10 {
+    # loop
+}
+
+let is_ready: bool = true;
+let is_beta: bool = false;
+let no_value = nil;
