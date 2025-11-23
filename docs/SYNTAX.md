@@ -1,109 +1,175 @@
-# Omnikarai Language Syntax Specification
+# Omnikarai Language Syntax Specification (v4)
 
-This document outlines the proposed syntax for the Omnikarai programming language. The design goals are to create a language that is easy to read and write, like Python, but with distinct features and a clear, explicit structure.
+## Guiding Principles
 
-## 1. Comments
+Omnikarai is a dynamically-typed, high-level programming language. Its design philosophy emphasizes code readability and simplicity, creating a unique syntax that feels familiar and productive.
 
-Single-line comments begin with the `#` symbol.
+1.  **Readability:** A clean, intuitive syntax that prioritizes clarity.
+2.  **Expressiveness:** Provide powerful, modern language features in an approachable way.
+3.  **Performance:** While the syntax is high-level, the underlying implementation aims for a runtime that is significantly faster than standard Python.
+
+---
+
+## 1. The Basics
+
+### 1.1. Comments
+
+-   Single-line comments start with `#`.
+-   Multi-line (block) comments are enclosed in `#|` and `|#`.
 
 ```omnikarai
 # This is a single-line comment.
-let x = 5; # This is an inline comment.
+
+#|
+This is a multi-line, or block, comment.
+It can span multiple lines.
+|#
 ```
 
-## 2. Variable Declaration
+### 1.2. Variable Declaration and Assignment
 
-Variables are declared using the `let` keyword. Statements are terminated by a semicolon `;`. Omnikarai uses type inference by default but supports optional static type hints for clarity and potential performance optimizations.
+Omnikarai uses the `set` keyword for the initial declaration of a variable. Subsequent re-assignment uses the standard `=` operator.
 
 ```omnikarai
-let score = 100;                 // Type inferred as integer
-let pi: float = 3.14;            // Explicitly typed as float
-let name: string = "Omnikarai";  // Explicitly typed as string
-let is_active: bool = true;      // Explicitly typed as boolean
+set score = 100          # Variable declaration
+score = 110              # Re-assignment
+
+set name = "Omnikarai"
+set is_active = true
 ```
 
-## 3. Modules (Imports)
+### 1.3. Data Types
 
-Modules are brought into scope using the `use` keyword, which is a simple substitute for Python's `import`.
+As a dynamically typed language, types are inferred at runtime. The primitive types are:
+
+-   **Numbers:** Integers (`10`, `42`) and Floats (`3.14`).
+-   **Strings:** Defined with single (`'...'`) or double (`"..."`) quotes.
+-   **Booleans:** `true` and `false`.
+-   **Nil:** `nil` (represents the absence of a value).
+
+### 1.4. Code Blocks
+
+Code blocks (for functions, classes, and control flow) are defined by **indentation**. A colon (`:`) is used to start an indented block.
+
+---
+
+## 2. Control Flow
+
+### 2.1. If-Elif-Else Statements
+
+Conditional logic uses standard keywords.
 
 ```omnikarai
-use os;
-use network.http;
+set temperature = 25
+
+if temperature > 30:
+  print("It's hot.")
+elif temperature < 10:
+  print("It's cold.")
+else:
+  print("It's pleasant.")
 ```
 
-## 4. Function Definition
+### 2.2. Match Expressions
 
-Functions are defined with the `fn` keyword. Arguments can have optional type hints. The function body is enclosed in curly braces `{}`. The `return` keyword exits a function with an optional return value.
+For more complex conditional logic, `match` provides powerful and readable pattern matching.
 
 ```omnikarai
-// Function with no arguments
-fn say_hello() {
-  print("Hello, World!");
-}
+set status_code = 200
 
-// Function with typed arguments and a return value
-fn add(x: int, y: int) {
-  return x + y;
-}
-
-// Usage
-let sum = add(10, 20);
+match status_code:
+    case 200:
+        print("OK")
+    case 404:
+        print("Not Found")
+    case 500..599:
+        print("Server Error")
+    case _:
+        print("Unknown Status") # `_` is the default wildcard case
 ```
 
-## 5. Control Flow
-
-### If-Else Statements
-
-Conditional logic uses `if`, `else if`, and `else`. Parentheses around the condition are not required.
+### 2.3. Loops
 
 ```omnikarai
-let temperature = 25;
+# While loop
+set counter = 0
+while counter < 5:
+  print(counter)
+  counter = counter + 1
 
-if temperature > 30 {
-  print("It's hot.");
-} else if temperature < 10 {
-  print("It's cold.");
-} else {
-  print("It's pleasant.");
-}
+# For loop
+set fruits = ["apple", "banana", "cherry"]
+for fruit in fruits:
+    print(fruit)
 ```
 
-### While Loops
+---
 
-The `while` loop executes a block of code as long as a condition is true.
+## 3. Data Structures
+
+Collections are syntactically familiar.
+
+-   **Lists (Arrays):** `set my_list = [1, "a", true]`
+-   **Dictionaries (Maps):** `set my_dict = {"name": "Alice", "age": 30}`
+-   **Tuples:** `set my_tuple = (10, 20, "c")`
+
+---
+
+## 4. Functions
+
+Functions are defined with the `fn` keyword.
 
 ```omnikarai
-let counter = 0;
-while counter < 5 {
-  print(counter);
-  counter = counter + 1;
-}
+fn say_hello():
+    print("Hello, World!")
+
+fn add(x, y):
+    return x + y
+
+# Calling functions
+say_hello()
+set result = add(5, 10)
 ```
 
-### For Loops
+---
 
-Omnikarai uses a `for-in` construct for iteration over sequences, such as ranges or arrays.
+## 5. Classes
+
+Classes are defined with the `class` keyword, but methods use `fn`. The constructor method is named `init`.
 
 ```omnikarai
-// Loop over a range (exclusive of the end value)
-for i in 0..5 { // Will print 0, 1, 2, 3, 4
-  print(i);
-}
+class Person:
+    fn init(self, name, age):
+        self.name = name
+        self.age = age
 
-// Loop over an array
-let fruits = ["apple", "banana", "cherry"];
-for fruit in fruits {
-  print(fruit);
-}
+    fn greet(self):
+        print("Hello, my name is " + self.name)
+
+# Creating an instance
+set p = Person("Alice", 30)
+p.greet() 
+# Output: Hello, my name is Alice
 ```
 
-## 6. Data Types & Literals
+---
 
-- **Numbers:** `10`, `99.9`
-- **Strings:** `"Hello"`, `'World'` (both single and double quotes are valid)
-- **Booleans:** `true`, `false`
-- **Nil:** `nil` (represents the absence of a value, similar to Python's `None`)
-- **Arrays (Lists):** A collection of values.
-  `let my_array = [1, "a", true, 3.14];`
-- **Maps (Dictionaries):** A collection of key-value pairs.
-  `let my_map = {"name": "Alice", "age": 30};`
+## 6. Modules
+
+Omnikarai uses the `use` keyword for its module system.
+
+```omnikarai
+# Import an entire module, members accessed with dot notation.
+# Corresponds to Python's `import math`
+use math
+print(math.sqrt(16))
+
+# Import a specific item from a module into the current namespace.
+# Corresponds to Python's `from os import path`
+use os.path
+print(path.join("/home", "user"))
+
+# Import an item and rename it with `as`.
+use collections.Array as MyList
+set items = MyList.new()
+```

@@ -4,22 +4,41 @@
 #include <stdlib.h>
 #include "lexer.h"
 
-// Forward declarations
-void read_char(Lexer* l);
-char* read_identifier(Lexer* l);
-char* read_number(Lexer* l);
-void skip_whitespace(Lexer* l);
-char peek_char(Lexer* l);
-char* read_string(Lexer* l);
+#define INDENT_STACK_SIZE 100
+#define PENDING_TOKEN_SIZE 20
 
+// --- Forward declarations ---
+static void read_char(Lexer* l);
+static char peek_char(Lexer* l);
+static Token new_token(TokenType type, const char* literal);
+static char* read_identifier(Lexer* l);
+static char* read_number(Lexer* l);
+static char* read_string(Lexer* l);
+static TokenType lookup_ident(const char* ident);
+static Token handle_indentation(Lexer* l);
+
+// --- Lexer Initialization ---
 void lexer_init(Lexer* l, const char* source_code) {
     l->input = source_code;
     l->position = 0;
     l->readPosition = 0;
+    l->ch = 0;
+    l->at_bol = 1; // At beginning of line
+    l->line_num = 1;
+
+    l->indent_stack = malloc(sizeof(int) * INDENT_STACK_SIZE);
+    l->indent_level = 0;
+    l->indent_stack[0] = 0;
+
+    l->pending_tokens = malloc(sizeof(Token) * PENDING_TOKEN_SIZE);
+    l->pending_count = 0;
+
     read_char(l); // Initialize the first character
 }
 
-void read_char(Lexer* l) {
+// --- Helper Functions ---
+
+static void read_char(Lexer* l) {
     if (l->readPosition >= strlen(l->input)) {
         l->ch = 0; // NUL character, signifies EOF
     } else {
@@ -29,7 +48,7 @@ void read_char(Lexer* l) {
     l->readPosition += 1;
 }
 
-char peek_char(Lexer* l) {
+static char peek_char(Lexer* l) {
     if (l->readPosition >= strlen(l->input)) {
         return 0;
     } else {
@@ -37,131 +56,242 @@ char peek_char(Lexer* l) {
     }
 }
 
+static Token new_token(TokenType type, const char* literal) {
+    Token tok;
+    tok.type = type;
+    // Note: In a real compiler, you'd copy the literal to manage memory.
+    // For simplicity here, we are using string literals directly.
+    tok.literal = (char*)literal;
+    return tok;
+}
 
-void skip_whitespace(Lexer* l) {
-    while (isspace(l->ch)) {
+static int is_letter(char ch) {
+    return isalpha(ch) || ch == '_';
+}
+
+static void skip_inline_whitespace(Lexer* l) {
+    while (l->ch == ' ' || l->ch == '\t') {
         read_char(l);
     }
 }
 
-// Helper to check if a character is a letter or underscore
-int is_letter(char ch) {
-    return isalpha(ch) || ch == '_';
-}
+// --- Keyword Lookup ---
 
-// Looks up an identifier to see if it's a keyword
-TokenType lookup_ident(char* ident) {
+static TokenType lookup_ident(const char* ident) {
+    if (strcmp(ident, "set") == 0) return TOKEN_SET;
     if (strcmp(ident, "fn") == 0) return TOKEN_FN;
-    if (strcmp(ident, "let") == 0) return TOKEN_LET;
-    if (strcmp(ident, "use") == 0) return TOKEN_USE;
+    if (strcmp(ident, "class") == 0) return TOKEN_CLASS;
     if (strcmp(ident, "if") == 0) return TOKEN_IF;
+    if (strcmp(ident, "elif") == 0) return TOKEN_ELIF;
     if (strcmp(ident, "else") == 0) return TOKEN_ELSE;
     if (strcmp(ident, "for") == 0) return TOKEN_FOR;
     if (strcmp(ident, "in") == 0) return TOKEN_IN;
     if (strcmp(ident, "while") == 0) return TOKEN_WHILE;
     if (strcmp(ident, "return") == 0) return TOKEN_RETURN;
+    if (strcmp(ident, "use") == 0) return TOKEN_USE;
+    if (strcmp(ident, "as") == 0) return TOKEN_AS;
+    if (strcmp(ident, "match") == 0) return TOKEN_MATCH;
+    if (strcmp(ident, "case") == 0) return TOKEN_CASE;
     if (strcmp(ident, "true") == 0) return TOKEN_TRUE;
     if (strcmp(ident, "false") == 0) return TOKEN_FALSE;
     if (strcmp(ident, "nil") == 0) return TOKEN_NIL;
-    if (strcmp(ident, "string") == 0) return TOKEN_TYPE_STRING;
-    if (strcmp(ident, "int") == 0) return TOKEN_TYPE_INT;
-    if (strcmp(ident, "float") == 0) return TOKEN_TYPE_FLOAT;
-    if (strcmp(ident, "bool") == 0) return TOKEN_TYPE_BOOL;
     return TOKEN_IDENT;
 }
 
-char* read_identifier(Lexer* l) {
-    int start_pos = l->position;
-    while (is_letter(l->ch)) {
+// --- Main Tokenization Logic ---
+
+static char* read_identifier(Lexer* l) {
+    size_t start_pos = l->position;
+    while (is_letter(l->ch) || isdigit(l->ch)) {
         read_char(l);
     }
-    int length = l->position - start_pos;
+    size_t length = l->position - start_pos;
     char* ident = malloc(length + 1);
     strncpy(ident, &l->input[start_pos], length);
     ident[length] = '\0';
     return ident;
 }
 
-char* read_number(Lexer* l) {
-    int start_pos = l->position;
+static char* read_number(Lexer* l) {
+    size_t start_pos = l->position;
     while (isdigit(l->ch)) {
         read_char(l);
     }
-    int length = l->position - start_pos;
+    size_t length = l->position - start_pos;
     char* num = malloc(length + 1);
     strncpy(num, &l->input[start_pos], length);
     num[length] = '\0';
     return num;
 }
 
-char* read_string(Lexer* l) {
-    int start_pos = l->position + 1; // +1 to skip the opening "
+static char* read_string(Lexer* l) {
+    char quote_char = l->ch;
+    size_t start_pos = l->position + 1;
     do {
         read_char(l);
-    } while (l->ch != '"' && l->ch != 0);
+    } while (l->ch != quote_char && l->ch != 0);
     
-    int length = l->position - start_pos;
+    size_t length = l->position - start_pos;
     char* str = malloc(length + 1);
     strncpy(str, &l->input[start_pos], length);
     str[length] = '\0';
+    read_char(l); // Consume the closing quote
     return str;
 }
+
+static void skip_multiline_comment(Lexer* l) {
+    while (l->ch != 0) {
+        if (l->ch == '|' && peek_char(l) == '#') {
+            read_char(l); // consume '|'
+            read_char(l); // consume '#'
+            return;
+        }
+        read_char(l);
+    }
+}
+
+static Token handle_indentation(Lexer* l) {
+    int current_indent = l->indent_stack[l->indent_level];
+    int new_indent = 0;
+
+    // Calculate new indentation level
+    while (l->ch == ' ' || l->ch == '\t') {
+        // For simplicity, we'll count tabs as 4 spaces
+        new_indent += (l->ch == ' ') ? 1 : 4;
+        read_char(l);
+    }
+    
+    // Check for blank or comment lines
+    if (l->ch == '#' || l->ch == '\n' || l->ch == 0) {
+        l->at_bol = 1; // Still at BOL for next line
+        // Skip the rest of the line
+        while (l->ch != '\n' && l->ch != 0) read_char(l);
+        if (l->ch == '\n') {
+            l->line_num++;
+            read_char(l);
+        }
+        return get_next_token(l); // Recursive call to get next real token
+    }
+
+    l->at_bol = 0; // We have content, so not at BOL anymore
+
+    if (new_indent > current_indent) {
+        l->indent_level++;
+        l->indent_stack[l->indent_level] = new_indent;
+        return new_token(TOKEN_INDENT, "INDENT");
+    }
+
+    if (new_indent < current_indent) {
+        while (l->indent_stack[l->indent_level] > new_indent) {
+            l->indent_level--;
+            l->pending_tokens[l->pending_count++] = new_token(TOKEN_DEDENT, "DEDENT");
+        }
+        // If the new indentation level is not on the stack, it's an error
+        if (l->indent_stack[l->indent_level] != new_indent) {
+            // For now, return illegal token. A real compiler would have better error reporting.
+            return new_token(TOKEN_ILLEGAL, "IndentationError");
+        }
+        // Pop one DEDENT from the pending queue to return now
+        l->pending_count--;
+        return l->pending_tokens[l->pending_count];
+    }
+
+    // Indentation is the same, no token to emit, so continue parsing this line
+    return get_next_token(l);
+}
+
+// --- Main Public API ---
 
 Token get_next_token(Lexer* l) {
     Token tok;
 
-    skip_whitespace(l);
+    if (l->pending_count > 0) {
+        l->pending_count--;
+        return l->pending_tokens[l->pending_count];
+    }
+    
+    if (l->at_bol) {
+        return handle_indentation(l);
+    }
+    
+    skip_inline_whitespace(l);
 
     switch (l->ch) {
-        case '=':
-            if (peek_char(l) == '=') {
-                read_char(l);
-                tok = (Token){TOKEN_EQ, "=="};
-            } else {
-                tok = (Token){TOKEN_ASSIGN, "="};
-            }
-            break;
-        case '!':
-            if (peek_char(l) == '=') {
-                read_char(l);
-                tok = (Token){TOKEN_NOT_EQ, "!="};
-            } else {
-                tok = (Token){TOKEN_BANG, "!"}; // ! is a valid prefix operator
-            }
-            break;
-        case '-': tok = (Token){TOKEN_MINUS, "-"}; break; // - is a valid prefix operator, and also infix
+        case '=': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_EQ, "==")) : new_token(TOKEN_ASSIGN, "="); break;
+        case '!': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_NOT_EQ, "!=")) : new_token(TOKEN_ILLEGAL, "!"); break;
+        case '<': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_LTE, "<=")) : new_token(TOKEN_LT, "<"); break;
+        case '>': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_GTE, ">=")) : new_token(TOKEN_GT, ">"); break;
+        
+        case '+': tok = new_token(TOKEN_PLUS, "+"); break;
+        case '-': tok = new_token(TOKEN_MINUS, "-"); break;
+        case '*': tok = new_token(TOKEN_STAR, "*"); break;
+        case '/': tok = new_token(TOKEN_SLASH, "/"); break;
+
         case '.':
             if (peek_char(l) == '.') {
-                read_char(l);
-                tok = (Token){TOKEN_RANGE, ".."};
+                read_char(l); // consume first '.'
+                // Not implemented: .. range operator, for now illegal
+                tok = new_token(TOKEN_ILLEGAL, "..");
             } else {
-                tok = (Token){TOKEN_ILLEGAL, "."};
+                tok = new_token(TOKEN_ILLEGAL, ".");
             }
             break;
-        case ';': tok = (Token){TOKEN_SEMICOLON, ";"}; break;
-        case '(': tok = (Token){TOKEN_LPAREN, "("}; break;
-        case ')': tok = (Token){TOKEN_RPAREN, ")"}; break;
-        case '{': tok = (Token){TOKEN_LBRACE, "{"}; break;
-        case '}': tok = (Token){TOKEN_RBRACE, "}"}; break;
-        case ',': tok = (Token){TOKEN_COMMA, ","}; break;
-        case '+': tok = (Token){TOKEN_PLUS, "+"}; break;
-        case '<': tok = (Token){TOKEN_LT, "<"}; break;
-        case '>': tok = (Token){TOKEN_GT, ">"}; break;
-        case 0:   tok = (Token){TOKEN_EOF, ""}; break;
+
+        case ',': tok = new_token(TOKEN_COMMA, ","); break;
+        case ':': tok = new_token(TOKEN_COLON, ":"); break;
+        case '(': tok = new_token(TOKEN_LPAREN, "("); break;
+        case ')': tok = new_token(TOKEN_RPAREN, ")"); break;
+        case '[': tok = new_token(TOKEN_LBRACKET, "["); break;
+        case ']': tok = new_token(TOKEN_RBRACKET, "]"); break;
+
+        case '\n':
+            l->at_bol = 1;
+            l->line_num++;
+            read_char(l);
+            return get_next_token(l); // Recurse to handle BOL logic
+
+        case '"':
+        case '\'':
+            tok.literal = read_string(l);
+            tok.type = TOKEN_STRING;
+            return tok; // Special return
+
+        case '#':
+            if (peek_char(l) == '|') {
+                read_char(l); // consume '#'
+                read_char(l); // consume '|'
+                skip_multiline_comment(l);
+                return get_next_token(l); // Get next token after comment
+            } else {
+                // Single line comment, skip to end of line
+                while(l->ch != '\n' && l->ch != 0) read_char(l);
+                return get_next_token(l);
+            }
+            break;
+
+        case 0:
+            // Handle final DEDENTs at EOF
+            if (l->indent_stack[l->indent_level] > 0) {
+                 l->indent_level--;
+                 return new_token(TOKEN_DEDENT, "DEDENT");
+            }
+            tok = new_token(TOKEN_EOF, "");
+            break;
+
         default:
             if (is_letter(l->ch)) {
                 tok.literal = read_identifier(l);
                 tok.type = lookup_ident(tok.literal);
-                return tok; // Special return because read_identifier already advanced the char
+                return tok; // Special return
             } else if (isdigit(l->ch)) {
                 tok.literal = read_number(l);
                 tok.type = TOKEN_INT;
-                return tok; // Special return because read_number already advanced the char
+                return tok; // Special return
             } else {
-                tok = (Token){TOKEN_ILLEGAL, ""};
+                tok = new_token(TOKEN_ILLEGAL, "");
             }
     }
 
-    read_char(l); // Advance to the next character for single-char tokens
+    read_char(l);
     return tok;
 }

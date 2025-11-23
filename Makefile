@@ -5,8 +5,11 @@ SOURCES=$(wildcard src/*.c)
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES)
+$(TARGET): $(SOURCES) | bin
 	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCES)
+
+bin:
+	mkdir -p bin
 
 clean:
 	rm -f $(TARGET)
