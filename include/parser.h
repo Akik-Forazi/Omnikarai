@@ -4,36 +4,32 @@
 #include "lexer.h"
 #include "ast.h"
 
-// --- PRECEDENCE --- //
-typedef enum {
-    LOWEST,
-    EQUALS,      // ==
-    LESSGREATER, // > or <
-    SUM,         // +
-    PRODUCT,     // *
-    PREFIX,      // -X or !X
-    CALL,        // myFunction(X)
-} Precedence;
+// Forward declare Parser for use in function pointer types
+typedef struct Parser Parser;
+
+// --- Pratt Parser Function Types ---
+typedef AST_Expression* (*prefix_parse_fn)(Parser* p);
+typedef AST_Expression* (*infix_parse_fn)(Parser* p, AST_Expression* left);
 
 // Parser structure holds the state of our parser
-typedef struct {
+struct Parser {
     Lexer* lexer; // Pointer to the lexer instance
     Token currentToken;
     Token peekToken;
-} Parser;
 
-// --- Parser API ---
+    // For error handling
+    char** errors;
+    int error_count;
+
+    // Pratt parser function tables
+    prefix_parse_fn prefix_parse_fns[256]; // Assuming max 256 token types
+    infix_parse_fn infix_parse_fns[256];
+};
+
+// --- Parser Public API ---
 Parser* new_parser(Lexer* l);
-void parser_next_token(Parser* p);
+void free_parser(Parser* p); // Good practice to have a way to free memory
 AST_Program* parse_program(Parser* p);
-AST_Statement* parse_statement(Parser* p);
-AST_Statement* parse_let_statement(Parser* p);
-AST_Expression* parse_expression(Parser* p, Precedence precedence);
-AST_Expression* parse_identifier(Parser* p);
-AST_Expression* parse_integer_literal(Parser* p);
-AST_Expression* parse_boolean(Parser* p);
-AST_Expression* parse_string_literal(Parser* p);
-AST_Expression* parse_function_literal(Parser* p);
-AST_Expression* parse_call_expression(Parser* p, AST_Expression* function);
 
 #endif //OMNIKARAI_PARSER_H
+

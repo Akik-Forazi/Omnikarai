@@ -19,6 +19,7 @@ typedef enum {
     WHILE_STATEMENT,
     FOR_STATEMENT,
     MATCH_STATEMENT,
+    MATCH_CASE_STATEMENT,
     
     // Expressions
     IDENTIFIER,
@@ -31,7 +32,8 @@ typedef enum {
     INFIX_EXPRESSION,
     PREFIX_EXPRESSION,
     CALL_EXPRESSION,
-    MEMBER_ACCESS_EXPRESSION // For obj.property
+    MEMBER_ACCESS_EXPRESSION, // For obj.property
+    EMPTY_EXPRESSION // For temporary empty block expressions like {}
 } AST_NodeType;
 
 
@@ -116,6 +118,11 @@ typedef struct {
     int argument_count;
 } AST_Expression_Call;
 
+typedef struct {
+    AST_Expression base;
+    // No specific fields needed for an empty expression beyond the base.
+} AST_Expression_Empty; // New struct definition
+
 
 // --- STATEMENTS ---
 
@@ -157,10 +164,24 @@ typedef struct {
     AST_Statement* alternative; // Can be another IF_STATEMENT or a BLOCK_STATEMENT
 } AST_Statement_If;
 
+// `while <condition>: <body>`
+typedef struct {
+    AST_Statement base;
+    AST_Expression* condition;
+    AST_Statement_Block* body;
+} AST_Statement_While;
+
+// `for <iterator> in <iterable>: <body>`
+typedef struct {
+    AST_Statement base;
+    AST_Expression_Identifier* iterator;
+    AST_Expression* iterable;
+    AST_Statement_Block* body;
+} AST_Statement_For;
+
 // A single case in a match statement: `case <pattern>: <consequence>`
 typedef struct {
-    AST_NodeType type; // Should be MATCH_STATEMENT conceptually
-    Token token; // The `case` token
+    AST_Statement base; // Inherit from AST_Statement
     AST_Expression* pattern;
     AST_Statement_Block* consequence;
 } AST_Statement_MatchCase;

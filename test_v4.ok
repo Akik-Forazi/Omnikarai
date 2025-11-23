@@ -1,0 +1,35 @@
+# This is a test file for the v4 Omnikarai syntax
+
+set x = 10
+set y = 20
+# set z = x + y * 2
+
+# fn my_func(a, b):
+#     print("The sum is:", a + b)
+#     return a + b
+
+# set result = my_func(x, z)
+
+# if result > 50:
+#     print("Big number!")
+# elif result > 20:
+#     print("Medium number.")
+# else:
+#     print("Small number.")
+
+# while x < 12:
+#     print("x is", x)
+#     x = x + 1
+
+# for i in range(5):
+#     print("For loop iteration:", i)
+
+# class Greeter:
+#     fn init(self, name):
+#         set self.name = name
+
+#     fn say_hello(self):
+#         print("Hello, " + self.name)
+
+# set g = Greeter.init("Omnikarai")
+# g.say_hello()

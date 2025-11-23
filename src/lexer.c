@@ -15,10 +15,11 @@ static char* read_identifier(Lexer* l);
 static char* read_number(Lexer* l);
 static char* read_string(Lexer* l);
 static TokenType lookup_ident(const char* ident);
-static Token handle_indentation(Lexer* l);
+static void handle_indentation(Lexer* l); // Changed to void
 
 // --- Lexer Initialization ---
 void lexer_init(Lexer* l, const char* source_code) {
+
     l->input = source_code;
     l->position = 0;
     l->readPosition = 0;
@@ -27,13 +28,22 @@ void lexer_init(Lexer* l, const char* source_code) {
     l->line_num = 1;
 
     l->indent_stack = malloc(sizeof(int) * INDENT_STACK_SIZE);
+    if (l->indent_stack == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for indent_stack\n");
+        exit(1);
+    }
     l->indent_level = 0;
     l->indent_stack[0] = 0;
 
     l->pending_tokens = malloc(sizeof(Token) * PENDING_TOKEN_SIZE);
-    l->pending_count = 0;
+    if (l->pending_tokens == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for pending_tokens\n");
+        exit(1);
+    }
+    l->pending_count = 0; // Initialize pending_count
 
     read_char(l); // Initialize the first character
+
 }
 
 // --- Helper Functions ---
@@ -101,30 +111,43 @@ static TokenType lookup_ident(const char* ident) {
 // --- Main Tokenization Logic ---
 
 static char* read_identifier(Lexer* l) {
+
     size_t start_pos = l->position;
     while (is_letter(l->ch) || isdigit(l->ch)) {
         read_char(l);
     }
     size_t length = l->position - start_pos;
     char* ident = malloc(length + 1);
+    if (ident == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for identifier literal\n");
+        exit(1);
+    }
     strncpy(ident, &l->input[start_pos], length);
     ident[length] = '\0';
+
     return ident;
 }
 
 static char* read_number(Lexer* l) {
+
     size_t start_pos = l->position;
     while (isdigit(l->ch)) {
         read_char(l);
     }
     size_t length = l->position - start_pos;
     char* num = malloc(length + 1);
+    if (num == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for number literal\n");
+        exit(1);
+    }
     strncpy(num, &l->input[start_pos], length);
     num[length] = '\0';
+
     return num;
 }
 
 static char* read_string(Lexer* l) {
+
     char quote_char = l->ch;
     size_t start_pos = l->position + 1;
     do {
@@ -133,72 +156,120 @@ static char* read_string(Lexer* l) {
     
     size_t length = l->position - start_pos;
     char* str = malloc(length + 1);
+    if (str == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for string literal\n");
+        exit(1);
+    }
     strncpy(str, &l->input[start_pos], length);
     str[length] = '\0';
     read_char(l); // Consume the closing quote
+
     return str;
 }
 
-static void skip_multiline_comment(Lexer* l) {
-    while (l->ch != 0) {
-        if (l->ch == '|' && peek_char(l) == '#') {
-            read_char(l); // consume '|'
-            read_char(l); // consume '#'
-            return;
-        }
-        read_char(l);
-    }
-}
 
-static Token handle_indentation(Lexer* l) {
+
+static void handle_indentation(Lexer* l) {
+
+
     int current_indent = l->indent_stack[l->indent_level];
     int new_indent = 0;
 
-    // Calculate new indentation level
-    while (l->ch == ' ' || l->ch == '\t') {
-        // For simplicity, we'll count tabs as 4 spaces
-        new_indent += (l->ch == ' ') ? 1 : 4;
-        read_char(l);
-    }
-    
-    // Check for blank or comment lines
-    if (l->ch == '#' || l->ch == '\n' || l->ch == 0) {
-        l->at_bol = 1; // Still at BOL for next line
-        // Skip the rest of the line
-        while (l->ch != '\n' && l->ch != 0) read_char(l);
+    // Consume all leading whitespace, blank lines, and comments
+    while (l->ch != 0) {
+        // Skip current line if it's blank or comment
+        if (l->ch == ' ' || l->ch == '\t') {
+            new_indent = 0; // Recalculate indentation for current line
+            while (l->ch == ' ' || l->ch == '\t') {
+                new_indent += (l->ch == ' ') ? 1 : 4;
+                read_char(l);
+            }
+        }
+
         if (l->ch == '\n') {
             l->line_num++;
             read_char(l);
+            l->at_bol = 1; // At beginning of line
+            new_indent = 0; // Reset indent for new line
+
+            continue; // Go back and process leading whitespace of new line
         }
-        return get_next_token(l); // Recursive call to get next real token
+
+        if (l->ch == '#') {
+            if (peek_char(l) == '|') {
+                read_char(l); read_char(l); // consume '#|'
+                while (l->ch != 0) {
+                    if (l->ch == '|' && peek_char(l) == '#') {
+                        read_char(l); read_char(l); // consume '|#'
+                        break;
+                    }
+                    if (l->ch == '\n') l->line_num++;
+                    read_char(l);
+                }
+            } else {
+                // Single line comment, skip to end of line
+                while(l->ch != '\n' && l->ch != 0) read_char(l);
+            }
+            l->at_bol = 1; // Comment line, still at BOL for next line
+            new_indent = 0; // Reset indent for new line
+
+            continue; // Go back and process leading whitespace of new line
+        }
+        break; // Found a significant character
     }
 
-    l->at_bol = 0; // We have content, so not at BOL anymore
+    // Now l->ch is the first significant character of the line, or EOF.
+    // Determine INDENT/DEDENT tokens if not EOF
+    if (l->ch != 0) {
 
-    if (new_indent > current_indent) {
-        l->indent_level++;
-        l->indent_stack[l->indent_level] = new_indent;
-        return new_token(TOKEN_INDENT, "INDENT");
-    }
 
-    if (new_indent < current_indent) {
-        while (l->indent_stack[l->indent_level] > new_indent) {
+        if (new_indent > current_indent) {
+
+            l->indent_level++;
+            if (l->indent_level >= INDENT_STACK_SIZE) {
+                fprintf(stderr, "Fatal: Indentation stack overflow\n");
+                exit(1);
+            }
+            l->indent_stack[l->indent_level] = new_indent;
+            if (l->pending_count >= PENDING_TOKEN_SIZE) { // Add INDENT to pending
+                fprintf(stderr, "Fatal: Pending token stack overflow\n");
+                exit(1);
+            }
+            l->pending_tokens[l->pending_count++] = new_token(TOKEN_INDENT, "INDENT");
+
+        } else if (new_indent < current_indent) {
+
+            while (l->indent_stack[l->indent_level] > new_indent) {
+                l->indent_level--;
+                if (l->pending_count >= PENDING_TOKEN_SIZE) {
+                    fprintf(stderr, "Fatal: Pending token stack overflow\n");
+                    exit(1);
+                }
+                l->pending_tokens[l->pending_count++] = new_token(TOKEN_DEDENT, "DEDENT");
+
+            }
+            // If the new indentation level is not on the stack, it's an error
+            if (l->indent_stack[l->indent_level] != new_indent) {
+                fprintf(stderr, "Fatal: IndentationError: inconsistent dedent at line %d\n", l->line_num);
+                exit(1);
+            }
+        }
+    } else { // It's EOF
+        // Emit DEDENTs for any open blocks at EOF
+        while (l->indent_stack[l->indent_level] > 0) {
             l->indent_level--;
+            if (l->pending_count >= PENDING_TOKEN_SIZE) {
+                fprintf(stderr, "Fatal: Pending token stack overflow\n");
+                exit(1);
+            }
             l->pending_tokens[l->pending_count++] = new_token(TOKEN_DEDENT, "DEDENT");
-        }
-        // If the new indentation level is not on the stack, it's an error
-        if (l->indent_stack[l->indent_level] != new_indent) {
-            // For now, return illegal token. A real compiler would have better error reporting.
-            return new_token(TOKEN_ILLEGAL, "IndentationError");
-        }
-        // Pop one DEDENT from the pending queue to return now
-        l->pending_count--;
-        return l->pending_tokens[l->pending_count];
-    }
 
-    // Indentation is the same, no token to emit, so continue parsing this line
-    return get_next_token(l);
+        }
+    }
+    l->at_bol = 0; // Handled BOL, processing actual tokens now
+
 }
+
 
 // --- Main Public API ---
 
@@ -209,11 +280,16 @@ Token get_next_token(Lexer* l) {
         l->pending_count--;
         return l->pending_tokens[l->pending_count];
     }
-    
+
     if (l->at_bol) {
-        return handle_indentation(l);
+        handle_indentation(l); // Call void function
+        if (l->pending_count > 0) { // Check if handle_indentation added tokens
+            l->pending_count--;
+            return l->pending_tokens[l->pending_count];
+        }
+        // If no tokens were added, proceed to tokenize l->ch
     }
-    
+
     skip_inline_whitespace(l);
 
     switch (l->ch) {
@@ -221,7 +297,7 @@ Token get_next_token(Lexer* l) {
         case '!': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_NOT_EQ, "!=")) : new_token(TOKEN_ILLEGAL, "!"); break;
         case '<': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_LTE, "<=")) : new_token(TOKEN_LT, "<"); break;
         case '>': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_GTE, ">=")) : new_token(TOKEN_GT, ">"); break;
-        
+
         case '+': tok = new_token(TOKEN_PLUS, "+"); break;
         case '-': tok = new_token(TOKEN_MINUS, "-"); break;
         case '*': tok = new_token(TOKEN_STAR, "*"); break;
@@ -243,12 +319,9 @@ Token get_next_token(Lexer* l) {
         case ')': tok = new_token(TOKEN_RPAREN, ")"); break;
         case '[': tok = new_token(TOKEN_LBRACKET, "["); break;
         case ']': tok = new_token(TOKEN_RBRACKET, "]"); break;
-
-        case '\n':
-            l->at_bol = 1;
-            l->line_num++;
-            read_char(l);
-            return get_next_token(l); // Recurse to handle BOL logic
+        case '{': tok = new_token(TOKEN_LBRACE, "{"); break; // New
+        case '}': tok = new_token(TOKEN_RBRACE, "}"); break; // New
+        case ';': tok = new_token(TOKEN_SEMICOLON, ";"); break; // New
 
         case '"':
         case '\'':
@@ -256,27 +329,9 @@ Token get_next_token(Lexer* l) {
             tok.type = TOKEN_STRING;
             return tok; // Special return
 
-        case '#':
-            if (peek_char(l) == '|') {
-                read_char(l); // consume '#'
-                read_char(l); // consume '|'
-                skip_multiline_comment(l);
-                return get_next_token(l); // Get next token after comment
-            } else {
-                // Single line comment, skip to end of line
-                while(l->ch != '\n' && l->ch != 0) read_char(l);
-                return get_next_token(l);
-            }
-            break;
-
         case 0:
-            // Handle final DEDENTs at EOF
-            if (l->indent_stack[l->indent_level] > 0) {
-                 l->indent_level--;
-                 return new_token(TOKEN_DEDENT, "DEDENT");
-            }
             tok = new_token(TOKEN_EOF, "");
-            break;
+            return tok;
 
         default:
             if (is_letter(l->ch)) {
@@ -289,9 +344,10 @@ Token get_next_token(Lexer* l) {
                 return tok; // Special return
             } else {
                 tok = new_token(TOKEN_ILLEGAL, "");
+                // No read_char(l) here, rely on the final one
             }
     }
 
-    read_char(l);
+    read_char(l); // Advance for simple tokens that haven't already advanced.
     return tok;
 }

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
@@ -14,6 +15,12 @@ char *read_file(const char *filepath) {
 
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
+    printf("[DEBUG] read_file: ftell returned length %ld\n", length);
+    if (length < 0) {
+        fprintf(stderr, "Could not determine file size for %s.\n", filepath);
+        fclose(file);
+        return NULL;
+    }
     fseek(file, 0, SEEK_SET);
 
     char *buffer = (char *)malloc(length + 1);
@@ -26,11 +33,11 @@ char *read_file(const char *filepath) {
     fread(buffer, 1, length, file);
     buffer[length] = '\0';
     fclose(file);
+    printf("[DEBUG] read_file: '%s' loaded, length %ld\n", filepath, length);
     return buffer;
 }
 
 int main(int argc, char **argv) {
-    printf("omnicc v0.0.1 - The Omnikarai Compiler\n");
     if (argc < 2) {
         fprintf(stderr, "Fatal: No input files specified. Usage: omnicc <file.ok>\n");
         return 1;
@@ -43,6 +50,7 @@ int main(int argc, char **argv) {
     if (source_code == NULL) {
         return 1;
     }
+    printf("[DEBUG] main: source_code address %p, length %zu\n", (void*)source_code, strlen(source_code));
 
     Lexer l;
     lexer_init(&l, source_code);
@@ -50,38 +58,22 @@ int main(int argc, char **argv) {
 
     AST_Program* program = parse_program(p);
 
-    // --- Verification ---
-    printf("Parser found %d statements.\n", program->statement_count);
-    for (int i = 0; i < program->statement_count; i++) {
-        AST_Statement* stmt = program->statements[i];
-        if (stmt->type == AST_LET_STATEMENT) {
-            AST_Statement_Let* let_stmt = (AST_Statement_Let*)stmt;
-            AST_Expression_Identifier* ident = (AST_Expression_Identifier*)let_stmt->name;
-            printf("Statement %d is a LET statement with identifier: %s", i + 1, ident->value);
-
-            if (let_stmt->value != NULL) {
-                if (let_stmt->value->type == AST_INTEGER_LITERAL) {
-                    AST_Expression_IntegerLiteral* int_lit = (AST_Expression_IntegerLiteral*)let_stmt->value;
-                    printf(", value: %lld\n", int_lit->value);
-                } else {
-                    printf(", value type: %d (not an integer literal)\n", let_stmt->value->type);
-                }
-            } else {
-                printf(", no value parsed.\n");
-            }
-
-        } else {
-            printf("Statement %d is of an unknown type.\n", i + 1);
+    if (p->error_count > 0) {
+        printf("Parser encountered %d errors:\n", p->error_count);
+        for (int i = 0; i < p->error_count; i++) {
+            printf("- %s\n", p->errors[i]);
         }
+        printf("Compilation failed.\n");
+    } else {
+        printf("Parsing complete. Found %d statements.\n", program->statement_count);
+        printf("Compilation successful (for now... no code generation yet).\n");
     }
 
-    // TODO: Need a function to free the entire AST
-    // free(program->statements); // This is more complex now
-    free(program);
-    free(p);
+    // TODO: Need a function to free the entire AST, parser errors, etc.
+    // free_program(program);
+    // free_parser(p);
     free(source_code);
     
-    printf("Compilation complete.\n");
     return 0;
 }
 

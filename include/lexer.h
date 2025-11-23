@@ -34,6 +34,9 @@ typedef enum {
     TOKEN_RPAREN,    // )
     TOKEN_LBRACKET,  // [
     TOKEN_RBRACKET,  // ]
+    TOKEN_LBRACE,    // {
+    TOKEN_RBRACE,    // }
+    TOKEN_SEMICOLON, // ;
 
     // KEYWORDS
     TOKEN_SET,       // set
@@ -67,6 +70,17 @@ typedef struct {
     size_t position;      // current position in input (points to current char)
     size_t readPosition;  // current reading position in input (after current char)
     char ch;           // current char under examination
+    
+    int at_bol;        // Is the lexer at the beginning of a line?
+    int line_num;      // Current line number
+
+    // Indentation stack
+    int* indent_stack;
+    int indent_level;
+
+    // Queue for pending DEDENT tokens
+    Token* pending_tokens;
+    int pending_count;
 } Lexer;
 
 // --- Lexer API ---
