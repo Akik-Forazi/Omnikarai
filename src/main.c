@@ -5,6 +5,8 @@
 #include "parser.h"
 #include "ast.h"
 
+#include "interpreter.h"
+
 // Function to read the entire content of a file into a string
 char *read_file(const char *filepath) {
     FILE *file = fopen(filepath, "rb");
@@ -54,6 +56,19 @@ int main(int argc, char **argv) {
 
     Lexer l;
     lexer_init(&l, source_code);
+
+    // --- DEBUG: Print all tokens ---
+    printf("--- Lexer Token Stream ---\n");
+    Token tok;
+    for (tok = get_next_token(&l); tok.type != TOKEN_EOF; tok = get_next_token(&l)) {
+        printf("Token: Type=%d, Literal='%s'\n", tok.type, tok.literal);
+    }
+    printf("Token: Type=%d, Literal='%s'\n", tok.type, tok.literal); // Print EOF
+    printf("--- End Token Stream ---\n\n");
+    // --- END DEBUG ---
+
+
+    lexer_init(&l, source_code); // Re-initialize for the parser
     Parser* p = new_parser(&l);
 
     AST_Program* program = parse_program(p);
@@ -66,7 +81,11 @@ int main(int argc, char **argv) {
         printf("Compilation failed.\n");
     } else {
         printf("Parsing complete. Found %d statements.\n", program->statement_count);
-        printf("Compilation successful (for now... no code generation yet).\n");
+        Object* result = interpret(program);
+        if (result != NULL) {
+            print_object(result);
+            printf("\n");
+        }
     }
 
     // TODO: Need a function to free the entire AST, parser errors, etc.

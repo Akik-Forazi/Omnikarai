@@ -379,6 +379,12 @@ static AST_Statement_Block* parse_block_statement(Parser* p) {
         free(block);
         return NULL;
     }
+    parser_next_token(p); // Consume the COLON
+
+    // Consume any newlines after the colon before expecting INDENT
+    while (current_token_is(p, TOKEN_NL)) {
+        parser_next_token(p);
+    }
 
     if (!expect_peek(p, TOKEN_INDENT)) {
         parser_add_error(p, "Expected indented block after ':'");
@@ -386,16 +392,20 @@ static AST_Statement_Block* parse_block_statement(Parser* p) {
         return NULL;
     }
     
-    parser_next_token(p);
+    parser_next_token(p); // Consume INDENT
 
     while(!current_token_is(p, TOKEN_DEDENT) && !current_token_is(p, TOKEN_EOF)) {
+        while (current_token_is(p, TOKEN_NL)) {
+            parser_next_token(p);
+        }
+        if(current_token_is(p, TOKEN_DEDENT) || current_token_is(p, TOKEN_EOF)) break;
+
         AST_Statement* stmt = parse_statement(p);
         if (stmt) {
             block->statement_count++;
             block->statements = realloc(block->statements, block->statement_count * sizeof(AST_Statement*));
             block->statements[block->statement_count - 1] = stmt;
         }
-        parser_next_token(p);
     }
     
     if (!current_token_is(p, TOKEN_DEDENT)) {
@@ -643,6 +653,8 @@ static AST_Statement* parse_expression_statement(Parser* p) {
 
 static AST_Statement* parse_statement(Parser* p) {
     switch (p->currentToken.type) {
+        case TOKEN_SEMICOLON:
+            return NULL;
         case TOKEN_SET:
             return parse_set_statement(p);
         case TOKEN_IF:
@@ -738,6 +750,11 @@ AST_Program* parse_program(Parser* p) {
     program->statement_count = 0;
 
     while (!current_token_is(p, TOKEN_EOF)) {
+        while (current_token_is(p, TOKEN_NL)) {
+            parser_next_token(p);
+        }
+        if(current_token_is(p, TOKEN_EOF)) break;
+
         AST_Statement* stmt = parse_statement(p);
         if (stmt) {
             program->statement_count++;

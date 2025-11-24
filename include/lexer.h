@@ -8,6 +8,7 @@ typedef enum {
     TOKEN_EOF,     // End of File
     TOKEN_INDENT,  // Represents an increase in indentation
     TOKEN_DEDENT,  // Represents a decrease in indentation
+    TOKEN_NL,      // Represents a newline character
 
     // IDENTIFIERS + LITERALS
     TOKEN_IDENT,   // my_variable, myFunction

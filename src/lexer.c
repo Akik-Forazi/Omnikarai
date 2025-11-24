@@ -15,7 +15,7 @@ static char* read_identifier(Lexer* l);
 static char* read_number(Lexer* l);
 static char* read_string(Lexer* l);
 static TokenType lookup_ident(const char* ident);
-static void handle_indentation(Lexer* l); // Changed to void
+static void handle_leading_whitespace_and_comments(Lexer* l); // Changed to void
 
 // --- Lexer Initialization ---
 void lexer_init(Lexer* l, const char* source_code) {
@@ -169,7 +169,7 @@ static char* read_string(Lexer* l) {
 
 
 
-static void handle_indentation(Lexer* l) {
+static void handle_leading_whitespace_and_comments(Lexer* l) {
 
 
     int current_indent = l->indent_stack[l->indent_level];
@@ -281,9 +281,15 @@ Token get_next_token(Lexer* l) {
         return l->pending_tokens[l->pending_count];
     }
 
-    skip_inline_whitespace(l); // NEW POSITION
-
     if (l->at_bol) {
+        handle_leading_whitespace_and_comments(l);
+        if (l->pending_count > 0) {
+            l->pending_count--;
+            return l->pending_tokens[l->pending_count];
+        }
+    }
+
+    skip_inline_whitespace(l);
 
     switch (l->ch) {
         case '=': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_EQ, "==")) : new_token(TOKEN_ASSIGN, "="); break;
@@ -315,6 +321,12 @@ Token get_next_token(Lexer* l) {
         case '{': tok = new_token(TOKEN_LBRACE, "{"); break; // New
         case '}': tok = new_token(TOKEN_RBRACE, "}"); break; // New
         case ';': tok = new_token(TOKEN_SEMICOLON, ";"); break; // New
+
+        case '\n':
+            tok = new_token(TOKEN_NL, "\\n");
+            l->at_bol = 1;
+            l->line_num++;
+            break;
 
         case '"':
         case '\'':
