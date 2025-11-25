@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h> // For unique temp file names
+
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-
-#include "interpreter.h"
+#include "compiler.h" // NEW INCLUDE
 
 // Function to read the entire content of a file into a string
 char *read_file(const char *filepath) {
     FILE *file = fopen(filepath, "rb");
     if (file == NULL) {
-        fprintf(stderr, "Could not open file: %s\n", filepath);
+        perror("Could not open file");
         return NULL;
     }
 
@@ -19,7 +20,7 @@ char *read_file(const char *filepath) {
     long length = ftell(file);
 
     if (length < 0) {
-        fprintf(stderr, "Could not determine file size for %s.\n", filepath);
+        perror("Could not determine file size");
         fclose(file);
         return NULL;
     }
@@ -27,7 +28,7 @@ char *read_file(const char *filepath) {
 
     char *buffer = (char *)malloc(length + 1);
     if (buffer == NULL) {
-        fprintf(stderr, "Could not allocate memory for file content.\n");
+        perror("Could not allocate memory for file content");
         fclose(file);
         return NULL;
     }
@@ -41,7 +42,7 @@ char *read_file(const char *filepath) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Fatal: No input files specified. Usage: omnicc <file.ok>\n");
+        perror("Fatal: No input files specified. Usage: omnicc <file.ok>");
         return 1;
     }
 
@@ -56,19 +57,6 @@ int main(int argc, char **argv) {
 
     Lexer l;
     lexer_init(&l, source_code);
-
-    // --- DEBUG: Print all tokens ---
-    printf("--- Lexer Token Stream ---\n");
-    Token tok;
-    for (tok = get_next_token(&l); tok.type != TOKEN_EOF; tok = get_next_token(&l)) {
-        printf("Token: Type=%d, Literal='%s'\n", tok.type, tok.literal);
-    }
-    printf("Token: Type=%d, Literal='%s'\n", tok.type, tok.literal); // Print EOF
-    printf("--- End Token Stream ---\n\n");
-    // --- END DEBUG ---
-
-
-    lexer_init(&l, source_code); // Re-initialize for the parser
     Parser* p = new_parser(&l);
 
     AST_Program* program = parse_program(p);
@@ -80,12 +68,56 @@ int main(int argc, char **argv) {
         }
         printf("Compilation failed.\n");
     } else {
-        printf("Parsing complete. Found %d statements.\n", program->statement_count);
-        Object* result = interpret(program);
-        if (result != NULL) {
-            print_object(result);
-            printf("\n");
+        printf("Parsing complete. Generating C code...\n");
+
+        char* c_code = compile(program); // CALL OUR COMPILER
+
+        // Generate unique temporary filenames
+        char temp_c_filepath[256];
+        char temp_exe_filepath[256];
+        srand(time(NULL)); // Seed for randomness
+        sprintf(temp_c_filepath, "/tmp/%d_omni_temp.c", rand());
+        sprintf(temp_exe_filepath, "/tmp/%d_omni_temp", rand());
+
+        // Write generated C code to file
+        FILE* temp_c_file = fopen(temp_c_filepath, "w");
+        if (temp_c_file == NULL) {
+            perror("Fatal: Could not open temporary C file for writing");
+            free(c_code);
+            // TODO: Free AST, parser, source_code more robustly
+            return 1;
         }
+        fputs(c_code, temp_c_file);
+        fclose(temp_c_file);
+        free(c_code); // Free the generated C code string
+
+        printf("Generated C code written to: %s\n", temp_c_filepath);
+
+        // Compile the C code using gcc
+        char compile_command[1024];
+        sprintf(compile_command, "gcc %s -o %s", temp_c_filepath, temp_exe_filepath);
+        printf("Executing compile command: %s\n", compile_command);
+
+        int compile_result = system(compile_command); // Execute gcc
+        if (compile_result != 0) {
+            perror("Fatal: C compilation failed");
+            remove(temp_c_filepath); // Attempt to cleanup
+            // TODO: Free AST, parser, source_code more robustly
+            return 1;
+        }
+        printf("Compilation successful. Executable: %s\n", temp_exe_filepath);
+
+        // Run the compiled executable
+        printf("Executing compiled program:\n");
+        int run_result = system(temp_exe_filepath); // Execute the compiled program
+        if (run_result != 0) {
+            perror("Fatal: Compiled program exited with error");
+        }
+
+        // Cleanup temporary files
+        remove(temp_c_filepath);
+        remove(temp_exe_filepath);
+        printf("Cleaned up temporary files.\n");
     }
 
     // TODO: Need a function to free the entire AST, parser errors, etc.

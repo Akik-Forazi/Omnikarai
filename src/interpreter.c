@@ -7,6 +7,9 @@
 #include "ast.h"
 #include "object.h"
 
+// --- Forward declarations for static functions ---
+static Object* eval(AST_Node* node, Environment* env);
+
 // --- Helper Functions ---
 static Object* new_integer_object(long long value) {
     Object* obj = malloc(sizeof(Object));
@@ -32,6 +35,18 @@ static Object* new_string_object(char* value) {
     Object* obj = malloc(sizeof(Object));
     obj->type = OBJ_STRING;
     obj->value.string = strdup(value); // Duplicate the string
+    return obj;
+}
+
+static Object* new_function_object(AST_Expression_Identifier** params, int param_count, AST_Statement_Block* body, Environment* env) {
+    Object* obj = malloc(sizeof(Object));
+    obj->type = OBJ_FUNCTION;
+    ObjectFunction* fn = malloc(sizeof(ObjectFunction));
+    fn->parameters = params;
+    fn->parameter_count = param_count;
+    fn->body = body;
+    fn->env = env;
+    obj->value.function = fn;
     return obj;
 }
 
@@ -86,9 +101,39 @@ void set_environment(Environment* env, char* name, Object* val) {
     env->store = new_entry;
 }
 
-// --- Interpreter ---
+// --- Function Application ---
+static Environment* extend_function_env(ObjectFunction* fn, Object** args, int arg_count) {
+    Environment* env = new_environment();
+    env->outer = fn->env; // Set the function's closure as the outer environment
 
-static Object* eval(AST_Node* node, Environment* env);
+    for (int i = 0; i < arg_count; i++) {
+        set_environment(env, fn->parameters[i]->value, args[i]);
+    }
+    return env;
+}
+
+static Object* apply_function(Object* func, Object** args, int arg_count) {
+    if (func->type != OBJ_FUNCTION) {
+        fprintf(stderr, "RuntimeError: Expected a function, but got type %d.\n", func->type);
+        exit(1);
+    }
+
+    ObjectFunction* fn = func->value.function;
+
+    if (arg_count != fn->parameter_count) {
+        fprintf(stderr, "RuntimeError: Wrong number of arguments. Expected %d, got %d.\n", fn->parameter_count, arg_count);
+        exit(1);
+    }
+
+    Environment* extended_env = extend_function_env(fn, args, arg_count);
+    Object* evaluated = eval((AST_Node*)fn->body, extended_env);
+
+    // TODO: Free extended_env
+
+    return evaluated;
+}
+
+// --- Interpreter ---
 
 static Object* eval_program(AST_Program* program, Environment* env) {
     Object* result = NULL;
@@ -188,6 +233,18 @@ static Object* eval_if_statement(AST_Statement_If* if_stmt, Environment* env) {
     }
 }
 
+static Object** eval_expressions(AST_Expression** exprs, int count, Environment* env) {
+    Object** result = malloc(count * sizeof(Object*));
+    if (result == NULL) {
+        fprintf(stderr, "Fatal: Memory allocation failed for evaluated expressions.\n");
+        exit(1);
+    }
+    for (int i = 0; i < count; i++) {
+        result[i] = eval((AST_Node*)exprs[i], env);
+    }
+    return result;
+}
+
 static Object* eval(AST_Node* node, Environment* env) {
     switch (node->type) {
         case EXPRESSION_STATEMENT:
@@ -210,6 +267,24 @@ static Object* eval(AST_Node* node, Environment* env) {
             return eval_if_statement((AST_Statement_If*)node, env);
         case BLOCK_STATEMENT: // This case is needed for consequence and alternative blocks
             return eval_block_statement((AST_Statement_Block*)node, env);
+        case FN_DEFINITION: {
+            AST_Statement_FnDef* fn_def = (AST_Statement_FnDef*)node;
+            Object* fn_obj = new_function_object(fn_def->parameters, fn_def->parameter_count, fn_def->body, env);
+            set_environment(env, fn_def->name->value, fn_obj);
+            return fn_obj;
+        }
+        case CALL_EXPRESSION: {
+            AST_Expression_Call* call_expr = (AST_Expression_Call*)node;
+            Object* function = eval((AST_Node*)call_expr->function, env);
+            if (function == NULL) return NULL; // Error handling
+
+            Object** args = eval_expressions(call_expr->arguments, call_expr->argument_count, env);
+            if (args == NULL) return NULL; // Error handling
+
+            Object* result = apply_function(function, args, call_expr->argument_count);
+            // TODO: Free args array
+            return result;
+        }
         default:
             return NULL;
     }
@@ -237,6 +312,9 @@ void print_object(Object* obj) {
             break;
         case OBJ_STRING:
             printf("%s", obj->value.string);
+            break;
+        case OBJ_FUNCTION:
+            printf("<function>");
             break;
         default:
             printf("Unknown object type\n");

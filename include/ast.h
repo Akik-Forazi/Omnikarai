@@ -5,6 +5,7 @@
 
 // --- FORWARD DECLARATIONS ---
 struct AST_Statement;
+typedef struct AST_Statement_Block AST_Statement_Block; // Forward declaration
 
 // --- NODE TYPES ---
 typedef enum {
@@ -33,6 +34,7 @@ typedef enum {
     PREFIX_EXPRESSION,
     CALL_EXPRESSION,
     MEMBER_ACCESS_EXPRESSION, // For obj.property
+    FN_LITERAL, // New: Function literal as an expression
     EMPTY_EXPRESSION // For temporary empty block expressions like {}
 } AST_NodeType;
 
@@ -118,6 +120,13 @@ typedef struct {
     int argument_count;
 } AST_Expression_Call;
 
+typedef struct AST_Expression_FnLiteral {
+    AST_Expression base;
+    AST_Expression_Identifier** parameters;
+    int parameter_count;
+    AST_Statement_Block* body;
+} AST_Expression_FnLiteral;
+
 typedef struct {
     AST_Expression base;
     // No specific fields needed for an empty expression beyond the base.
@@ -134,7 +143,7 @@ typedef struct {
 } AST_Statement_Set;
 
 // A block of statements, e.g., an indented block
-typedef struct {
+typedef struct AST_Statement_Block {
     AST_Statement base;
     AST_Statement** statements;
     int statement_count;

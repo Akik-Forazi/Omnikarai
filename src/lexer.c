@@ -170,14 +170,11 @@ static char* read_string(Lexer* l) {
 
 
 static void handle_leading_whitespace_and_comments(Lexer* l) {
-
-
     int current_indent = l->indent_stack[l->indent_level];
     int new_indent = 0;
+    int saw_newline = 0;
 
-    // Consume all leading whitespace, blank lines, and comments
     while (l->ch != 0) {
-        // Skip current line if it's blank or comment
         if (l->ch == ' ' || l->ch == '\t') {
             new_indent = 0; // Recalculate indentation for current line
             while (l->ch == ' ' || l->ch == '\t') {
@@ -187,11 +184,16 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
         }
 
         if (l->ch == '\n') {
+            if (l->pending_count >= PENDING_TOKEN_SIZE) {
+                fprintf(stderr, "Fatal: Pending token stack overflow\n");
+                exit(1);
+            }
+            l->pending_tokens[l->pending_count++] = new_token(TOKEN_NL, "\\n");
             l->line_num++;
             read_char(l);
-            l->at_bol = 1; // At beginning of line
+            l->at_bol = 1; // At beginning of line for the *next* token
             new_indent = 0; // Reset indent for new line
-
+            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
 
@@ -212,19 +214,16 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
             }
             l->at_bol = 1; // Comment line, still at BOL for next line
             new_indent = 0; // Reset indent for new line
-
+            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
-        break; // Found a significant character
+        break; // Found a significant character (not whitespace, newline, or comment)
     }
 
     // Now l->ch is the first significant character of the line, or EOF.
     // Determine INDENT/DEDENT tokens if not EOF
     if (l->ch != 0) {
-
-
         if (new_indent > current_indent) {
-
             l->indent_level++;
             if (l->indent_level >= INDENT_STACK_SIZE) {
                 fprintf(stderr, "Fatal: Indentation stack overflow\n");
@@ -241,12 +240,15 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
 
             while (l->indent_stack[l->indent_level] > new_indent) {
                 l->indent_level--;
+                if (l->indent_level < 0) {
+                    fprintf(stderr, "Fatal: IndentationError: negative indent level at line %d\n", l->line_num);
+                    exit(1);
+                }
                 if (l->pending_count >= PENDING_TOKEN_SIZE) {
                     fprintf(stderr, "Fatal: Pending token stack overflow\n");
                     exit(1);
                 }
                 l->pending_tokens[l->pending_count++] = new_token(TOKEN_DEDENT, "DEDENT");
-
             }
             // If the new indentation level is not on the stack, it's an error
             if (l->indent_stack[l->indent_level] != new_indent) {
@@ -276,20 +278,43 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
 Token get_next_token(Lexer* l) {
     Token tok;
 
-    if (l->pending_count > 0) {
-        l->pending_count--;
-        return l->pending_tokens[l->pending_count];
-    }
-
-    if (l->at_bol) {
-        handle_leading_whitespace_and_comments(l);
+    while (l->at_bol || l->ch == ' ' || l->ch == '\t' || l->ch == '\n' || l->ch == '#') {
         if (l->pending_count > 0) {
             l->pending_count--;
             return l->pending_tokens[l->pending_count];
         }
+
+        if (l->at_bol) {
+            handle_leading_whitespace_and_comments(l);
+        } else { // Handle inline whitespace/comments that might appear after a token
+            if (l->ch == ' ' || l->ch == '\t') {
+                skip_inline_whitespace(l);
+            } else if (l->ch == '#') {
+                // Single line comment, skip to end of line, then trigger BOL logic
+                while(l->ch != '\n' && l->ch != 0) read_char(l);
+                l->at_bol = 1;
+                continue; // Re-evaluate loop condition to process BOL
+            } else if (l->ch == '\n') {
+                // If we hit a newline not at BOL, it means the previous token didn't consume it.
+                // Push NL and then trigger BOL logic.
+                 if (l->pending_count >= PENDING_TOKEN_SIZE) {
+                    fprintf(stderr, "Fatal: Pending token stack overflow\n");
+                    exit(1);
+                }
+                l->pending_tokens[l->pending_count++] = new_token(TOKEN_NL, "\\n");
+                l->line_num++;
+                read_char(l);
+                l->at_bol = 1;
+                continue; // Re-evaluate loop condition to process BOL
+            }
+            break; // No more leading special chars, break to process actual token
+        }
     }
 
-    skip_inline_whitespace(l);
+    if (l->pending_count > 0) {
+        l->pending_count--;
+        return l->pending_tokens[l->pending_count];
+    }
 
     switch (l->ch) {
         case '=': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_EQ, "==")) : new_token(TOKEN_ASSIGN, "="); break;
@@ -321,12 +346,6 @@ Token get_next_token(Lexer* l) {
         case '{': tok = new_token(TOKEN_LBRACE, "{"); break; // New
         case '}': tok = new_token(TOKEN_RBRACE, "}"); break; // New
         case ';': tok = new_token(TOKEN_SEMICOLON, ";"); break; // New
-
-        case '\n':
-            tok = new_token(TOKEN_NL, "\\n");
-            l->at_bol = 1;
-            l->line_num++;
-            break;
 
         case '"':
         case '\'':

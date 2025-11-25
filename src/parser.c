@@ -43,6 +43,7 @@ static AST_Expression* parse_call_expression(Parser* p, AST_Expression* function
 static AST_Expression** parse_call_arguments(Parser* p);
 static AST_Statement* parse_if_statement(Parser* p);
 static AST_Statement* parse_fn_definition(Parser* p);
+static AST_Expression* parse_fn_expression(Parser* p); // New prototype for function literals
 static AST_Expression_Identifier** parse_function_parameters(Parser* p);
 static AST_Statement* parse_while_statement(Parser* p);
 static AST_Statement* parse_for_statement(Parser* p);
@@ -149,14 +150,23 @@ static AST_Statement* parse_if_statement(Parser* p) {
         // TODO: free memory
         return NULL;
     }
+
     stmt->consequence = parse_block_statement(p);
 
     // Check for 'elif' or 'else'
     if (peek_token_is(p, TOKEN_ELIF)) {
         parser_next_token(p); // consume 'elif'
+        // Consume any newlines after the elif before expecting COLON
+        while (peek_token_is(p, TOKEN_NL)) {
+            parser_next_token(p);
+        }
         stmt->alternative = parse_if_statement(p);
     } else if (peek_token_is(p, TOKEN_ELSE)) {
         parser_next_token(p); // consume 'else'
+        // Consume any newlines after the else before expecting COLON
+        while (peek_token_is(p, TOKEN_NL)) {
+            parser_next_token(p);
+        }
         if (!expect_peek(p, TOKEN_COLON)) {
             // TODO: free memory
             return NULL;
@@ -232,7 +242,7 @@ static AST_Statement* parse_fn_definition(Parser* p) {
     }
     stmt->parameter_count = count;
 
-    if (!current_token_is(p, TOKEN_COLON)) {
+    if (!expect_peek(p, TOKEN_COLON)) {
         parser_add_error(p, "Expected ':' after function signature");
         return NULL;
     }
@@ -240,6 +250,32 @@ static AST_Statement* parse_fn_definition(Parser* p) {
     stmt->body = parse_block_statement(p);
 
     return (AST_Statement*)stmt;
+}
+
+static AST_Expression* parse_fn_expression(Parser* p) {
+    AST_Expression_FnLiteral* expr = malloc(sizeof(AST_Expression_FnLiteral));
+    expr->base.type = FN_LITERAL;
+    expr->base.token = p->currentToken; // The 'fn' token
+
+    if (!expect_peek(p, TOKEN_LPAREN)) { return NULL; }
+    
+    expr->parameters = parse_function_parameters(p);
+    
+    // Count parameters
+    int count = 0;
+    if (expr->parameters != NULL) {
+        while(expr->parameters[count] != NULL) count++;
+    }
+    expr->parameter_count = count;
+
+    if (!expect_peek(p, TOKEN_COLON)) {
+        parser_add_error(p, "Expected ':' after function signature");
+        return NULL;
+    }
+
+    expr->body = parse_block_statement(p);
+
+    return (AST_Expression*)expr;
 }
 
 static AST_Statement* parse_while_statement(Parser* p) {
@@ -374,25 +410,18 @@ static AST_Statement_Block* parse_block_statement(Parser* p) {
     block->statements = NULL;
     block->statement_count = 0;
 
-    if (!current_token_is(p, TOKEN_COLON)) {
-        parser_add_error(p, "Expected ':' to start a block");
-        free(block);
-        return NULL;
+    // Consume any newlines after the colon
+    while (peek_token_is(p, TOKEN_NL)) { // Check peekToken for NL
+        parser_next_token(p); // Consume NL
     }
-    parser_next_token(p); // Consume the COLON
+    // Now currentToken is COLON (if no NLs) or the last NL (if NLs were consumed), peekToken is INDENT (if present)
 
-    // Consume any newlines after the colon before expecting INDENT
-    while (current_token_is(p, TOKEN_NL)) {
-        parser_next_token(p);
-    }
-
-    if (!expect_peek(p, TOKEN_INDENT)) {
+    if (!expect_peek(p, TOKEN_INDENT)) { // Expect and consume INDENT
         parser_add_error(p, "Expected indented block after ':'");
         free(block);
         return NULL;
     }
-    
-    parser_next_token(p); // Consume INDENT
+    parser_next_token(p); // Advance past the INDENT token
 
     while(!current_token_is(p, TOKEN_DEDENT) && !current_token_is(p, TOKEN_EOF)) {
         while (current_token_is(p, TOKEN_NL)) {
@@ -408,7 +437,7 @@ static AST_Statement_Block* parse_block_statement(Parser* p) {
         }
     }
     
-    if (!current_token_is(p, TOKEN_DEDENT)) {
+    if (!expect_peek(p, TOKEN_DEDENT)) { // Expect and consume DEDENT
         parser_add_error(p, "Expected dedent to end block");
         free(block);
         return NULL;
@@ -682,7 +711,7 @@ static AST_Statement* parse_statement(Parser* p) {
 Parser* new_parser(Lexer* l) {
     Parser* p = malloc(sizeof(Parser));
     if (p == NULL) {
-        fprintf(stderr, "Fatal: Memory allocation failed for Parser\n");
+        perror("Fatal: Memory allocation failed for Parser");
         exit(1);
     }
     p->lexer = l;
@@ -705,6 +734,7 @@ Parser* new_parser(Lexer* l) {
     p->prefix_parse_fns[TOKEN_STRING] = parse_string_literal;
     p->prefix_parse_fns[TOKEN_LPAREN] = parse_grouped_expression;
     p->prefix_parse_fns[TOKEN_LBRACE] = parse_empty_block_expression; // New: Handle {} as empty expressions
+    p->prefix_parse_fns[TOKEN_FN] = parse_fn_expression; // New: Handle function literals
     p->prefix_parse_fns[TOKEN_ASSIGN] = parse_single_token_expression; // Temporary for test.ok
     p->prefix_parse_fns[TOKEN_PLUS] = parse_single_token_expression; // Temporary for test.ok
     p->prefix_parse_fns[TOKEN_COMMA] = parse_single_token_expression; // Temporary for test.ok
