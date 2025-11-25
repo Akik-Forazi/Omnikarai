@@ -1,15 +1,22 @@
-CC = gcc # Changed from gcc to clang
-CFLAGS=-Iinclude -Wall -Wextra -std=c99 -g # Added -g for debug symbols
-TARGET=bin/omnicc
-# SOURCES=$(wildcard src/*.c) # This already includes compiler.c and omni_runtime.c
+CC = gcc
+CFLAGS=-Iinclude -Wall -Wextra -std=c99 -g
+LLVM_CONFIG = llvm-config-15
 
-# Explicitly list object files to ensure all new sources are compiled
-OBJECTS=src/main.o src/lexer.o src/parser.o src/compiler.o src/omni_runtime.o
+# Get LLVM flags
+LLVM_CFLAGS := $(shell $(LLVM_CONFIG) --cflags)
+LLVM_LDFLAGS := $(shell $(LLVM_CONFIG) --ldflags)
+LLVM_LIBS := $(shell $(LLVM_CONFIG) --libs all --system-libs)
+
+# Append LLVM flags
+CFLAGS += $(LLVM_CFLAGS)
+
+TARGET=bin/omnicc
+OBJECTS=src/main.o src/lexer.o src/parser.o src/interpreter.o src/omni_runtime.o src/compiler.o src/jit_engine.o src/symbol_table.o
 
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS) | bin
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS) $(LLVM_LDFLAGS) $(LLVM_LIBS)
 
 # Rule to compile .c to .o
 src/%.o: src/%.c

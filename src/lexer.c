@@ -172,8 +172,6 @@ static char* read_string(Lexer* l) {
 static void handle_leading_whitespace_and_comments(Lexer* l) {
     int current_indent = l->indent_stack[l->indent_level];
     int new_indent = 0;
-    int saw_newline = 0;
-
     while (l->ch != 0) {
         if (l->ch == ' ' || l->ch == '\t') {
             new_indent = 0; // Recalculate indentation for current line
@@ -193,7 +191,6 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
             read_char(l);
             l->at_bol = 1; // At beginning of line for the *next* token
             new_indent = 0; // Reset indent for new line
-            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
 
@@ -214,7 +211,6 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
             }
             l->at_bol = 1; // Comment line, still at BOL for next line
             new_indent = 0; // Reset indent for new line
-            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
         break; // Found a significant character (not whitespace, newline, or comment)
@@ -318,7 +314,7 @@ Token get_next_token(Lexer* l) {
 
     switch (l->ch) {
         case '=': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_EQ, "==")) : new_token(TOKEN_ASSIGN, "="); break;
-        case '!': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_NOT_EQ, "!=")) : new_token(TOKEN_ILLEGAL, "!"); break;
+        case '!': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_NOT_EQ, "!=")) : new_token(TOKEN_BANG, "!"); break;
         case '<': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_LTE, "<=")) : new_token(TOKEN_LT, "<"); break;
         case '>': tok = (peek_char(l) == '=') ? (read_char(l), new_token(TOKEN_GTE, ">=")) : new_token(TOKEN_GT, ">"); break;
 

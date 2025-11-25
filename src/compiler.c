@@ -1,123 +1,109 @@
+#include "compiler.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "compiler.h"
-#include "ast.h"
-#include "object.h" // For object types if we need to generate runtime objects
-#include "omni_runtime.h" // NEW INCLUDE
+// LLVM includes
+#include <llvm-c/Core.h>
+#include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/Target.h>
+#include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Analysis.h>
 
-// --- Dynamic String Builder ---
+// Represents the state of our compiler
 typedef struct {
-    char* buffer;
-    size_t length;
-    size_t capacity;
-} StringBuilder;
+    LLVMModuleRef module;
+    LLVMBuilderRef builder;
+    // We will add a symbol table here later
+} Compiler;
 
-void sb_init(StringBuilder* sb) {
-    sb->capacity = 1024; // Initial capacity
-    sb->buffer = malloc(sb->capacity);
-    if (sb->buffer == NULL) {
-        fprintf(stderr, "Fatal: Memory allocation failed for StringBuilder.\n");
-        exit(1);
+// Forward declare our recursive compile function
+LLVMValueRef compile_node(Compiler* compiler, AST_Node* node);
+
+LLVMModuleRef compile_to_llvm_ir(AST_Node* ast) {
+    if (ast == NULL) {
+        fprintf(stderr, "Cannot compile a NULL AST.\n");
+        return NULL;
     }
-    sb->length = 0;
-    sb->buffer[0] = '\0';
-}
 
-void sb_append(StringBuilder* sb, const char* str) {
-    size_t str_len = strlen(str);
-    while (sb->length + str_len + 1 > sb->capacity) {
-        sb->capacity *= 2;
-        sb->buffer = realloc(sb->buffer, sb->capacity);
-        if (sb->buffer == NULL) {
-            fprintf(stderr, "Fatal: Memory re-allocation failed for StringBuilder.\n");
-            exit(1);
-        }
-    }
-    strcpy(sb->buffer + sb->length, str);
-    sb->length += str_len;
-}
+    Compiler compiler;
+    compiler.module = LLVMModuleCreateWithName("omni_module");
+    compiler.builder = LLVMCreateBuilder();
 
-void sb_free(StringBuilder* sb) {
-    free(sb->buffer);
-    sb->buffer = NULL;
-    sb->length = 0;
-    sb->capacity = 0;
-}
+    // Create a main function
+    LLVMTypeRef main_func_type = LLVMFunctionType(LLVMInt32Type(), NULL, 0, 0);
+    LLVMValueRef main_func = LLVMAddFunction(compiler.module, "main", main_func_type);
+    
+    // Create a basic block to start inserting code into
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(main_func, "entry");
+    LLVMPositionBuilderAtEnd(compiler.builder, entry);
 
-// --- Forward Declarations ---
-static void compile_node(StringBuilder* sb, AST_Node* node);
-static void compile_program(StringBuilder* sb, AST_Program* program);
-static void compile_integer_literal(StringBuilder* sb, AST_Expression_IntegerLiteral* integer);
-static void compile_boolean_literal(StringBuilder* sb, AST_Expression_Boolean* boolean);
-static void compile_string_literal(StringBuilder* sb, AST_Expression_StringLiteral* string);
-static void compile_expression_statement(StringBuilder* sb, AST_Statement_Expression* stmt);
-static void compile_call_expression(StringBuilder* sb, AST_Expression_Call* call_expr);
-
-// --- Compilation Functions for AST Nodes ---
-static void compile_program(StringBuilder* sb, AST_Program* program) {
+    // --- Start compiling the AST ---
+    AST_Program* program = (AST_Program*)ast;
+    LLVMValueRef last_value = NULL;
     for (int i = 0; i < program->statement_count; i++) {
-        compile_node(sb, (AST_Node*)program->statements[i]);
+        // Cast the specific statement pointer to the generic AST_Node pointer
+        last_value = compile_node(&compiler, (AST_Node*)program->statements[i]);
     }
+
+    // Use the last evaluated expression as the return value
+    if (last_value) {
+        LLVMBuildRet(compiler.builder, last_value);
+    } else {
+        // If there was no expression, return 0
+        LLVMBuildRet(compiler.builder, LLVMConstInt(LLVMInt32Type(), 0, 0));
+    }
+    // --- End compiling ---
+    
+    // Verify the generated code, checking for consistency
+    char *error = NULL;
+    LLVMVerifyModule(compiler.module, LLVMAbortProcessAction, &error);
+    LLVMDisposeMessage(error);
+
+    // Clean up the builder
+    LLVMDisposeBuilder(compiler.builder);
+
+    printf("Compiler: Successfully generated LLVM IR.\n");
+    LLVMDumpModule(compiler.module); // Print the IR to console for debugging
+
+    return compiler.module;
 }
 
-static void compile_node(StringBuilder* sb, AST_Node* node) {
-    if (node == NULL) {
-        return;
-    }
+LLVMValueRef compile_node(Compiler* compiler, AST_Node* node) {
+    if (node == NULL) return NULL;
+
     switch (node->type) {
-        case EXPRESSION_STATEMENT:
-            compile_expression_statement(sb, (AST_Statement_Expression*)node);
-            break;
-        case INTEGER_LITERAL:
-            compile_integer_literal(sb, (AST_Expression_IntegerLiteral*)node);
-            break;
-        case BOOLEAN_LITERAL:
-            compile_boolean_literal(sb, (AST_Expression_Boolean*)node);
-            break;
-        case STRING_LITERAL:
-            compile_string_literal(sb, (AST_Expression_StringLiteral*)node);
-            break;
-        // TODO: Add other AST node types here
+        case EXPRESSION_STATEMENT: {
+            AST_Statement_Expression* stmt = (AST_Statement_Expression*)node;
+            return compile_node(compiler, (AST_Node*)stmt->expression);
+        }
+
+        case INTEGER_LITERAL: {
+            AST_Expression_IntegerLiteral* literal = (AST_Expression_IntegerLiteral*)node;
+            return LLVMConstInt(LLVMInt32Type(), literal->value, 0);
+        }
+
+        case INFIX_EXPRESSION: {
+            AST_Expression_Infix* expr = (AST_Expression_Infix*)node;
+            LLVMValueRef left = compile_node(compiler, (AST_Node*)expr->left);
+            LLVMValueRef right = compile_node(compiler, (AST_Node*)expr->right);
+
+            if (strcmp(expr->operator, "+") == 0) {
+                return LLVMBuildAdd(compiler->builder, left, right, "addtmp");
+            } else if (strcmp(expr->operator, "-") == 0) {
+                return LLVMBuildSub(compiler->builder, left, right, "subtmp");
+            } else if (strcmp(expr->operator, "*") == 0) {
+                return LLVMBuildMul(compiler->builder, left, right, "multmp");
+            } else if (strcmp(expr->operator, "/") == 0) {
+                return LLVMBuildSDiv(compiler->builder, left, right, "divtmp"); // Signed division
+            } else {
+                fprintf(stderr, "Compiler Error: Unknown infix operator: %s\n", expr->operator);
+                return NULL;
+            }
+        }
+
         default:
-            fprintf(stderr, "Fatal: Unsupported AST node type in compiler: %d\n", node->type);
-            exit(1);
+            fprintf(stderr, "Compiler Error: Unrecognized AST node type: %d\n", node->type);
+            return NULL;
     }
-}
-
-// --- Public Compile Function ---
-char* compile(AST_Program* program) {
-    StringBuilder sb;
-    sb_init(&sb);
-
-    compile_program(&sb, program); // Directly call compile_program
-
-    char* result = sb.buffer; // Take ownership of the buffer
-    // Reset sb state so sb_free doesn't free it again later if called
-    sb.buffer = NULL; 
-    sb.length = 0;
-    sb.capacity = 0;
-
-    return result;
-}
-
-static void compile_expression_statement(StringBuilder* sb, AST_Statement_Expression* stmt) {
-    // TODO: Implement this function
-}
-
-static void compile_integer_literal(StringBuilder* sb, AST_Expression_IntegerLiteral* integer) {
-    // TODO: Implement this function
-}
-
-static void compile_boolean_literal(StringBuilder* sb, AST_Expression_Boolean* boolean) {
-    // TODO: Implement this function
-}
-
-static void compile_string_literal(StringBuilder* sb, AST_Expression_StringLiteral* string) {
-    // TODO: Implement this function
-}
-
-static void compile_call_expression(StringBuilder* sb, AST_Expression_Call* call_expr) {
-    // TODO: Implement this function
 }

@@ -9,6 +9,7 @@
 
 // --- Forward declarations for static functions ---
 static Object* eval(AST_Node* node, Environment* env);
+static int is_truthy(Object* obj);
 
 // --- Helper Functions ---
 static Object* new_integer_object(long long value) {
@@ -35,6 +36,13 @@ static Object* new_string_object(char* value) {
     Object* obj = malloc(sizeof(Object));
     obj->type = OBJ_STRING;
     obj->value.string = strdup(value); // Duplicate the string
+    return obj;
+}
+
+static Object* new_return_value_object(Object* value) {
+    Object* obj = malloc(sizeof(Object));
+    obj->type = OBJ_RETURN_VALUE;
+    obj->value.return_value = value;
     return obj;
 }
 
@@ -130,6 +138,10 @@ static Object* apply_function(Object* func, Object** args, int arg_count) {
 
     // TODO: Free extended_env
 
+    if (evaluated != NULL && evaluated->type == OBJ_RETURN_VALUE) {
+        return evaluated->value.return_value; // Unwrap the return value
+    }
+
     return evaluated;
 }
 
@@ -196,9 +208,38 @@ static Object* eval_infix_expression(AST_Expression_Infix* infix, Environment* e
         } else if (strcmp(infix->operator, ">=") == 0) {
             return new_boolean_object(left_val >= right_val);
         }
+    } else if (left->type == OBJ_STRING && right->type == OBJ_STRING) {
+        if (strcmp(infix->operator, "+") == 0) {
+            char* left_val = left->value.string;
+            char* right_val = right->value.string;
+            int new_len = strlen(left_val) + strlen(right_val);
+            char* new_str = malloc(new_len + 1);
+            strcpy(new_str, left_val);
+            strcat(new_str, right_val);
+            return new_string_object(new_str);
+        }
     }
     // TODO: Handle other types and errors
     return NULL;
+}
+
+static Object* eval_prefix_expression(char* operator, Object* right) {
+    if (strcmp(operator, "!") == 0) {
+        if (is_truthy(right)) {
+            return new_boolean_object(0);
+        } else {
+            return new_boolean_object(1);
+        }
+    } else if (strcmp(operator, "-") == 0) {
+        if (right->type != OBJ_INTEGER) {
+            // TODO: Error handling
+            return new_nil_object();
+        }
+        long long value = right->value.integer;
+        return new_integer_object(-value);
+    }
+    // TODO: Error handling for unknown operator
+    return new_nil_object();
 }
 
 static int is_truthy(Object* obj) {
@@ -216,6 +257,9 @@ static Object* eval_block_statement(AST_Statement_Block* block, Environment* env
     Object* result = NULL;
     for (int i = 0; i < block->statement_count; i++) {
         result = eval((AST_Node*)block->statements[i], env);
+        if (result != NULL && result->type == OBJ_RETURN_VALUE) {
+            return result; // Propagate return value up
+        }
     }
     return result;
 }
@@ -263,10 +307,20 @@ static Object* eval(AST_Node* node, Environment* env) {
             return eval_identifier((AST_Expression_Identifier*)node, env);
         case INFIX_EXPRESSION:
             return eval_infix_expression((AST_Expression_Infix*)node, env);
+        case PREFIX_EXPRESSION: {
+            AST_Expression_Prefix* prefix_expr = (AST_Expression_Prefix*)node;
+            Object* right = eval((AST_Node*)prefix_expr->right, env);
+            return eval_prefix_expression(prefix_expr->operator, right);
+        }
         case IF_STATEMENT:
             return eval_if_statement((AST_Statement_If*)node, env);
         case BLOCK_STATEMENT: // This case is needed for consequence and alternative blocks
             return eval_block_statement((AST_Statement_Block*)node, env);
+        case RETURN_STATEMENT: {
+            AST_Statement_Return* ret_stmt = (AST_Statement_Return*)node;
+            Object* val = eval((AST_Node*)ret_stmt->return_value, env);
+            return new_return_value_object(val);
+        }
         case FN_DEFINITION: {
             AST_Statement_FnDef* fn_def = (AST_Statement_FnDef*)node;
             Object* fn_obj = new_function_object(fn_def->parameters, fn_def->parameter_count, fn_def->body, env);
@@ -312,6 +366,9 @@ void print_object(Object* obj) {
             break;
         case OBJ_STRING:
             printf("%s", obj->value.string);
+            break;
+        case OBJ_RETURN_VALUE:
+            print_object(obj->value.return_value);
             break;
         case OBJ_FUNCTION:
             printf("<function>");

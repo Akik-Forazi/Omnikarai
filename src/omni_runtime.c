@@ -2,6 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Custom _strdup for C99 compatibility
+static char* _strdup(const char* s) {
+    size_t size = strlen(s) + 1;
+    char* p = malloc(size);
+    if (p) {
+        memcpy(p, s, size);
+    }
+    return p;
+}
+
 #include "omni_runtime.h"
 
 // --- Object Creation Functions ---
@@ -29,7 +39,7 @@ OmniValue omni_new_nil() {
 OmniValue omni_new_string(const char* val) {
     OmniValue obj;
     obj.type = OMNI_STRING;
-    obj.value.string = strdup(val); // Duplicate the string for ownership
+    obj.value.string = _strdup(val); // Duplicate the string for ownership
     return obj;
 }
 

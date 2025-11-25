@@ -1,6 +1,8 @@
 #ifndef OMNIKARAI_LEXER_H
 #define OMNIKARAI_LEXER_H
 
+#include <stddef.h>
+
 // TOKEN TYPES
 typedef enum {
     // SPECIAL TOKENS
@@ -21,6 +23,7 @@ typedef enum {
     TOKEN_MINUS,     // -
     TOKEN_STAR,      // *
     TOKEN_SLASH,     // /
+    TOKEN_BANG,      // !
     TOKEN_LT,        // <
     TOKEN_GT,        // >
     TOKEN_EQ,        // ==

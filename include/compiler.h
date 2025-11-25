@@ -1,10 +1,11 @@
-#ifndef OMNIKARAI_COMPILER_H
-#define OMNIKARAI_COMPILER_H
+#ifndef OMNI_COMPILER_H
+#define OMNI_COMPILER_H
 
 #include "ast.h"
 
-// The main function to compile an AST into C code.
-// Returns a string containing the generated C code.
-char* compile(AST_Program* program);
+// Forward declare LLVM types to avoid including llvm-c headers in our public header.
+typedef struct LLVMOpaqueModule* LLVMModuleRef;
 
-#endif //OMNIKARAI_COMPILER_H
+LLVMModuleRef compile_to_llvm_ir(AST_Node* ast);
+
+#endif // OMNI_COMPILER_H

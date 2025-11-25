@@ -728,6 +728,7 @@ Parser* new_parser(Lexer* l) {
     p->prefix_parse_fns[TOKEN_IDENT] = parse_identifier;
     p->prefix_parse_fns[TOKEN_INT] = parse_integer_literal;
     p->prefix_parse_fns[TOKEN_MINUS] = parse_prefix_expression;
+    p->prefix_parse_fns[TOKEN_BANG] = parse_prefix_expression;
     p->prefix_parse_fns[TOKEN_TRUE] = parse_boolean;
     p->prefix_parse_fns[TOKEN_FALSE] = parse_boolean;
     p->prefix_parse_fns[TOKEN_NIL] = parse_nil;
@@ -780,10 +781,13 @@ AST_Program* parse_program(Parser* p) {
     program->statement_count = 0;
 
     while (!current_token_is(p, TOKEN_EOF)) {
+        // Consume all newlines between statements
         while (current_token_is(p, TOKEN_NL)) {
             parser_next_token(p);
         }
-        if(current_token_is(p, TOKEN_EOF)) break;
+        if (current_token_is(p, TOKEN_EOF)) {
+            break;
+        }
 
         AST_Statement* stmt = parse_statement(p);
         if (stmt) {

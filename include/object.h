@@ -11,6 +11,7 @@ typedef enum {
     OBJ_INTEGER,
     OBJ_BOOLEAN,
     OBJ_NIL,
+    OBJ_RETURN_VALUE,
     OBJ_STRING,
     OBJ_FUNCTION,
 } ObjectType;
@@ -29,6 +30,7 @@ typedef struct Object {
         int boolean;
         char* string;
         ObjectFunction* function;
+        struct Object* return_value; // For OBJ_RETURN_VALUE
     } value;
 } Object;
 
