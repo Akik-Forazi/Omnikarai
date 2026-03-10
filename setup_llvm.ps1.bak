@@ -1,0 +1,92 @@
+# Define the LLVM version and target directory
+$llvmVersion = "18.1.6" # Using a recent, stable version
+$llvmArchive = "clang+llvm-$($llvmVersion)-x86_64-pc-windows-msvc.tar.xz"
+$downloadUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$($llvmVersion)/$($llvmArchive)"
+$targetDir = "C:\llvm"
+$downloadPath = Join-Path $env:TEMP $llvmArchive
+
+# --- Step 1: Download LLVM Archive ---
+Write-Host "Downloading LLVM $($llvmVersion) from $($downloadUrl)..."
+try {
+    # Use Invoke-WebRequest to download the file
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath -UseBasicParsing
+    Write-Host "Download complete: $($downloadPath)"
+} catch {
+    Write-Error "Failed to download LLVM. Please check the URL and your internet connection. Error: $_"
+    exit 1
+}
+
+# --- Step 2: Extract the Archive ---
+Write-Host "Extracting $($llvmArchive) to $($targetDir)..."
+# Ensure the target directory exists and is empty
+if (Test-Path $targetDir) {
+    Write-Host "Target directory $($targetDir) already exists. Removing it for a clean extraction."
+    Remove-Item -Path $targetDir -Recurse -Force
+}
+New-Item -Path $targetDir -ItemType Directory | Out-Null
+
+# Create a temporary directory for the first-stage tar extraction
+$tempTarDir = Join-Path $env:TEMP "llvm-tar"
+if (Test-Path $tempTarDir) {
+    Remove-Item -Path $tempTarDir -Recurse -Force
+}
+New-Item -Path $tempTarDir -ItemType Directory | Out-Null
+$tempTarFile = Join-Path $tempTarDir "llvm.tar"
+
+try {
+    # First, decompress the .xz file to a .tar file
+    Write-Host "Decompressing .xz archive..."
+    & "7z.exe" e $downloadPath -o"$($tempTarDir)" | Out-Null
+    
+    # Now, extract the .tar file to the final target directory
+    Write-Host "Extracting .tar archive to final destination..."
+    & "7z.exe" x $tempTarFile -o"$($targetDir)" | Out-Null
+    
+    # Find the subdirectory created by the extraction (e.g., clang+llvm-18.1.6-...)
+    $subDir = Get-ChildItem -Path $targetDir | Select-Object -First 1
+    if ($null -ne $subDir) {
+        # Move contents from the subdirectory up to C:\llvm
+        Write-Host "Moving contents from $($subDir.FullName) to $($targetDir)..."
+        Get-ChildItem -Path $subDir.FullName | Move-Item -Destination $targetDir
+        Remove-Item -Path $subDir.FullName -Recurse -Force
+    }
+
+    Write-Host "Extraction complete."
+} catch {
+    Write-Error "Failed to extract the archive. Please ensure 7-Zip is installed and in your PATH. Error: $_"
+    exit 1
+} finally {
+    # Clean up downloaded and temporary files
+    Write-Host "Cleaning up temporary files..."
+    Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempTarDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+
+# --- Step 3: Update System PATH Environment Variable ---
+Write-Host "Updating system PATH..."
+
+# Path to the new LLVM bin directory
+$llvmBinPath = Join-Path $targetDir "bin"
+
+# Get the current system PATH
+try {
+    $currentPath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $pathParts = $currentPath.Split(';') | Where-Object { $_ -ne "" }
+
+    # Remove any old LLVM paths
+    $newPathParts = $pathParts | Where-Object { $_ -notlike "*LLVM*" -and $_ -ne "" }
+    
+    # Add the new LLVM path to the beginning
+    $newPath = "$($llvmBinPath);" + ($newPathParts -join ';')
+
+    # Set the new system PATH
+    [System.Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
+    Write-Host "System PATH updated successfully. Please open a NEW terminal to use the new PATH."
+    Write-Host "New LLVM Path: $($llvmBinPath)"
+} catch {
+    Write-Error "Failed to update the system PATH. Please ensure you are running this script as an Administrator. Error: $_"
+    exit 1
+}
+
+Write-Host "LLVM setup is complete. Please open a new terminal window for the changes to take effect."

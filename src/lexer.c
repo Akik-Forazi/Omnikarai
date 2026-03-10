@@ -21,6 +21,7 @@ static void handle_leading_whitespace_and_comments(Lexer* l); // Changed to void
 void lexer_init(Lexer* l, const char* source_code) {
 
     l->input = source_code;
+    l->input_len = strlen(source_code); // PERF FIX: cache length once, O(n) total vs O(n^2)
     l->position = 0;
     l->readPosition = 0;
     l->ch = 0;
@@ -49,7 +50,8 @@ void lexer_init(Lexer* l, const char* source_code) {
 // --- Helper Functions ---
 
 static void read_char(Lexer* l) {
-    if (l->readPosition >= strlen(l->input)) {
+    // PERF FIX: use cached input_len instead of strlen() — was O(n^2), now O(1)
+    if (l->readPosition >= l->input_len) {
         l->ch = 0; // NUL character, signifies EOF
     } else {
         l->ch = l->input[l->readPosition];
@@ -59,7 +61,8 @@ static void read_char(Lexer* l) {
 }
 
 static char peek_char(Lexer* l) {
-    if (l->readPosition >= strlen(l->input)) {
+    // PERF FIX: use cached input_len instead of strlen()
+    if (l->readPosition >= l->input_len) {
         return 0;
     } else {
         return l->input[l->readPosition];
@@ -122,8 +125,10 @@ static char* read_identifier(Lexer* l) {
         fprintf(stderr, "Fatal: Memory allocation failed for identifier literal\n");
         exit(1);
     }
-    strncpy(ident, &l->input[start_pos], length);
-    ident[length] = '\0';
+    if (strncpy_s(ident, length + 1, &l->input[start_pos], length) != 0) {
+        fprintf(stderr, "Fatal: strncpy_s failed in read_identifier\n");
+        exit(1);
+    }
 
     return ident;
 }
@@ -140,8 +145,10 @@ static char* read_number(Lexer* l) {
         fprintf(stderr, "Fatal: Memory allocation failed for number literal\n");
         exit(1);
     }
-    strncpy(num, &l->input[start_pos], length);
-    num[length] = '\0';
+    if (strncpy_s(num, length + 1, &l->input[start_pos], length) != 0) {
+        fprintf(stderr, "Fatal: strncpy_s failed in read_number\n");
+        exit(1);
+    }
 
     return num;
 }
@@ -160,8 +167,10 @@ static char* read_string(Lexer* l) {
         fprintf(stderr, "Fatal: Memory allocation failed for string literal\n");
         exit(1);
     }
-    strncpy(str, &l->input[start_pos], length);
-    str[length] = '\0';
+    if (strncpy_s(str, length + 1, &l->input[start_pos], length) != 0) {
+        fprintf(stderr, "Fatal: strncpy_s failed in read_string\n");
+        exit(1);
+    }
     read_char(l); // Consume the closing quote
 
     return str;
@@ -172,7 +181,6 @@ static char* read_string(Lexer* l) {
 static void handle_leading_whitespace_and_comments(Lexer* l) {
     int current_indent = l->indent_stack[l->indent_level];
     int new_indent = 0;
-    int saw_newline = 0;
 
     while (l->ch != 0) {
         if (l->ch == ' ' || l->ch == '\t') {
@@ -193,7 +201,6 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
             read_char(l);
             l->at_bol = 1; // At beginning of line for the *next* token
             new_indent = 0; // Reset indent for new line
-            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
 
@@ -214,7 +221,6 @@ static void handle_leading_whitespace_and_comments(Lexer* l) {
             }
             l->at_bol = 1; // Comment line, still at BOL for next line
             new_indent = 0; // Reset indent for new line
-            saw_newline = 1;
             continue; // Go back and process leading whitespace of new line
         }
         break; // Found a significant character (not whitespace, newline, or comment)

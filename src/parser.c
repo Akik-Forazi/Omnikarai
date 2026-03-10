@@ -67,7 +67,10 @@ static void parser_add_error(Parser* p, const char* msg) {
     p->error_count++;
     p->errors = realloc(p->errors, p->error_count * sizeof(char*));
     char* error_msg = malloc(strlen(msg) + 1);
-    strcpy(error_msg, msg);
+    if (strcpy_s(error_msg, strlen(msg) + 1, msg) != 0) {
+        fprintf(stderr, "Fatal: strcpy_s failed in parser_add_error\n");
+        exit(1);
+    }
     p->errors[p->error_count - 1] = error_msg;
 }
 
@@ -466,7 +469,7 @@ static const Precedence precedences[] = {
 };
 
 static Precedence get_precedence(TokenType type) {
-    if (type < sizeof(precedences)/sizeof(precedences[0])) {
+    if ((size_t)type < sizeof(precedences)/sizeof(precedences[0])) {
         return precedences[type];
     }
     return PREC_LOWEST;
@@ -478,7 +481,10 @@ static AST_Expression* parse_identifier(Parser* p) {
     ident->base.type = IDENTIFIER;
     ident->base.token = p->currentToken;
     ident->value = malloc(strlen(p->currentToken.literal) + 1);
-    strcpy(ident->value, p->currentToken.literal);
+    if (strcpy_s(ident->value, strlen(p->currentToken.literal) + 1, p->currentToken.literal) != 0) {
+        fprintf(stderr, "Fatal: strcpy_s failed in parse_identifier\n");
+        exit(1);
+    }
     return (AST_Expression*)ident;
 }
 
@@ -510,7 +516,10 @@ static AST_Expression* parse_string_literal(Parser* p) {
     str_expr->base.type = STRING_LITERAL;
     str_expr->base.token = p->currentToken;
     str_expr->value = malloc(strlen(p->currentToken.literal) + 1);
-    strcpy(str_expr->value, p->currentToken.literal);
+    if (strcpy_s(str_expr->value, strlen(p->currentToken.literal) + 1, p->currentToken.literal) != 0) {
+        fprintf(stderr, "Fatal: strcpy_s failed in parse_string_literal\n");
+        exit(1);
+    }
     return (AST_Expression*)str_expr;
 }
 
@@ -628,7 +637,10 @@ static AST_Expression* parse_prefix_expression(Parser* p) {
     expr->base.type = PREFIX_EXPRESSION;
     expr->base.token = p->currentToken;
     expr->operator = malloc(strlen(p->currentToken.literal) + 1);
-    strcpy(expr->operator, p->currentToken.literal);
+    if (strcpy_s(expr->operator, strlen(p->currentToken.literal) + 1, p->currentToken.literal) != 0) {
+        fprintf(stderr, "Fatal: strcpy_s failed in parse_prefix_expression\n");
+        exit(1);
+    }
 
     parser_next_token(p);
     expr->right = parse_expression(p, PREC_PREFIX);
@@ -640,7 +652,10 @@ static AST_Expression* parse_infix_expression(Parser* p, AST_Expression* left) {
     expr->base.type = INFIX_EXPRESSION;
     expr->base.token = p->currentToken;
     expr->operator = malloc(strlen(p->currentToken.literal) + 1);
-    strcpy(expr->operator, p->currentToken.literal);
+    if (strcpy_s(expr->operator, strlen(p->currentToken.literal) + 1, p->currentToken.literal) != 0) {
+        fprintf(stderr, "Fatal: strcpy_s failed in parse_infix_expression\n");
+        exit(1);
+    }
     expr->left = left;
 
     Precedence prec = get_precedence(p->currentToken.type);
@@ -776,25 +791,38 @@ AST_Program* parse_program(Parser* p) {
         parser_add_error(p, "Memory allocation failed for program");
         return NULL;
     }
-    program->statements = NULL;
     program->statement_count = 0;
+
+    // PERF FIX: pre-allocate with capacity, grow by 2x instead of realloc every statement
+    int capacity = 16;
+    program->statements = malloc(capacity * sizeof(AST_Statement*));
+    if (!program->statements) {
+        parser_add_error(p, "Memory allocation failed for program statements");
+        free(program);
+        return NULL;
+    }
 
     while (!current_token_is(p, TOKEN_EOF)) {
         while (current_token_is(p, TOKEN_NL)) {
             parser_next_token(p);
         }
-        if(current_token_is(p, TOKEN_EOF)) break;
+        if (current_token_is(p, TOKEN_EOF)) break;
 
         AST_Statement* stmt = parse_statement(p);
         if (stmt) {
-            program->statement_count++;
-            program->statements = realloc(program->statements, program->statement_count * sizeof(AST_Statement*));
-            if (!program->statements) {
-                parser_add_error(p, "Memory allocation failed for program statements");
-                free(program);
-                return NULL;
+            // Grow by 2x when full — amortized O(1) instead of O(n) realloc every time
+            if (program->statement_count >= capacity) {
+                capacity *= 2;
+                AST_Statement** new_stmts = realloc(program->statements, capacity * sizeof(AST_Statement*));
+                if (!new_stmts) {
+                    parser_add_error(p, "Memory allocation failed for program statements");
+                    free(program->statements);
+                    free(program);
+                    return NULL;
+                }
+                program->statements = new_stmts;
             }
-            program->statements[program->statement_count - 1] = stmt;
+            program->statements[program->statement_count++] = stmt;
         }
         parser_next_token(p);
     }

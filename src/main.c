@@ -1,130 +1,143 @@
+// ============================================================
+//  OMNIKARAI Compiler — omnicc
+//  Windows x64 — No LLVM — No runtime
+//
+//  Usage:
+//    omnicc run   <file.ok>   — compile and run immediately
+//    omnicc build <file.ok>   — compile to .exe (TODO: pe_writer)
+//    omnicc dump  <file.ok>   — show generated machine code bytes
+// ============================================================
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h> // For unique temp file names
 
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-#include "compiler.h" // NEW INCLUDE
+#include "codegen.h"
 
-// Function to read the entire content of a file into a string
-char *read_file(const char *filepath) {
-    FILE *file = fopen(filepath, "rb");
-    if (file == NULL) {
-        perror("Could not open file");
+// ============================================================
+//  FILE READER
+// ============================================================
+
+static char* read_file(const char* path) {
+    FILE* f = NULL;
+    if (fopen_s(&f, path, "rb") != 0 || !f) {
+        fprintf(stderr, "Error: cannot open '%s'\n", path);
         return NULL;
     }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (len < 0) { fclose(f); return NULL; }
 
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-
-    if (length < 0) {
-        perror("Could not determine file size");
-        fclose(file);
-        return NULL;
-    }
-    fseek(file, 0, SEEK_SET);
-
-    char *buffer = (char *)malloc(length + 1);
-    if (buffer == NULL) {
-        perror("Could not allocate memory for file content");
-        fclose(file);
-        return NULL;
-    }
-
-    fread(buffer, 1, length, file);
-    buffer[length] = '\0';
-    fclose(file);
-
-    return buffer;
+    char* buf = malloc((size_t)len + 1);
+    if (!buf) { fclose(f); return NULL; }
+    fread(buf, 1, (size_t)len, f);
+    buf[len] = '\0';
+    fclose(f);
+    return buf;
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        perror("Fatal: No input files specified. Usage: omnicc <file.ok>");
-        return 1;
-    }
+// ============================================================
+//  COMPILE PIPELINE
+//  source → Lexer → Parser → AST → CodeGen → machine code
+// ============================================================
 
-    char *source_file_path = argv[1];
-    printf("Compiling: %s\n", source_file_path);
-
-    char *source_code = read_file(source_file_path);
-    if (source_code == NULL) {
-        return 1;
-    }
-
-
+static AST_Program* compile_source(const char* source, const char* filename) {
     Lexer l;
-    lexer_init(&l, source_code);
-    Parser* p = new_parser(&l);
+    lexer_init(&l, source);
 
+    Parser* p = new_parser(&l);
     AST_Program* program = parse_program(p);
 
     if (p->error_count > 0) {
-        printf("Parser encountered %d errors:\n", p->error_count);
-        for (int i = 0; i < p->error_count; i++) {
-            printf("- %s\n", p->errors[i]);
-        }
-        printf("Compilation failed.\n");
-    } else {
-        printf("Parsing complete. Generating C code...\n");
-
-        char* c_code = compile(program); // CALL OUR COMPILER
-
-        // Generate unique temporary filenames
-        char temp_c_filepath[256];
-        char temp_exe_filepath[256];
-        srand(time(NULL)); // Seed for randomness
-        sprintf(temp_c_filepath, "/tmp/%d_omni_temp.c", rand());
-        sprintf(temp_exe_filepath, "/tmp/%d_omni_temp", rand());
-
-        // Write generated C code to file
-        FILE* temp_c_file = fopen(temp_c_filepath, "w");
-        if (temp_c_file == NULL) {
-            perror("Fatal: Could not open temporary C file for writing");
-            free(c_code);
-            // TODO: Free AST, parser, source_code more robustly
-            return 1;
-        }
-        fputs(c_code, temp_c_file);
-        fclose(temp_c_file);
-        free(c_code); // Free the generated C code string
-
-        printf("Generated C code written to: %s\n", temp_c_filepath);
-
-        // Compile the C code using gcc
-        char compile_command[1024];
-        sprintf(compile_command, "gcc %s -o %s", temp_c_filepath, temp_exe_filepath);
-        printf("Executing compile command: %s\n", compile_command);
-
-        int compile_result = system(compile_command); // Execute gcc
-        if (compile_result != 0) {
-            perror("Fatal: C compilation failed");
-            remove(temp_c_filepath); // Attempt to cleanup
-            // TODO: Free AST, parser, source_code more robustly
-            return 1;
-        }
-        printf("Compilation successful. Executable: %s\n", temp_exe_filepath);
-
-        // Run the compiled executable
-        printf("Executing compiled program:\n");
-        int run_result = system(temp_exe_filepath); // Execute the compiled program
-        if (run_result != 0) {
-            perror("Fatal: Compiled program exited with error");
-        }
-
-        // Cleanup temporary files
-        remove(temp_c_filepath);
-        remove(temp_exe_filepath);
-        printf("Cleaned up temporary files.\n");
+        fprintf(stderr, "Parse errors in '%s':\n", filename);
+        for (int i = 0; i < p->error_count; i++)
+            fprintf(stderr, "  [%d] %s\n", i + 1, p->errors[i]);
+        free_parser(p);
+        return NULL;
     }
 
-    // TODO: Need a function to free the entire AST, parser errors, etc.
-    // free_program(program);
-    // free_parser(p);
-    free(source_code);
-    
+    free_parser(p);
+    return program;
+}
+
+// ============================================================
+//  COMMANDS
+// ============================================================
+
+static int cmd_run(const char* filepath) {
+    char* source = read_file(filepath);
+    if (!source) return 1;
+
+    AST_Program* program = compile_source(source, filepath);
+    free(source);
+    if (!program) return 1;
+
+    CodeGen cg;
+    codegen_init(&cg);
+
+    if (!codegen_compile(&cg, program)) {
+        fprintf(stderr, "Compilation failed.\n");
+        codegen_free(&cg);
+        return 1;
+    }
+
+    int exit_code = codegen_run(&cg);
+    codegen_free(&cg);
+    return exit_code;
+}
+
+static int cmd_dump(const char* filepath) {
+    char* source = read_file(filepath);
+    if (!source) return 1;
+
+    AST_Program* program = compile_source(source, filepath);
+    free(source);
+    if (!program) return 1;
+
+    CodeGen cg;
+    codegen_init(&cg);
+
+    if (!codegen_compile(&cg, program)) {
+        fprintf(stderr, "Compilation failed.\n");
+        codegen_free(&cg);
+        return 1;
+    }
+
+    codegen_dump(&cg);
+    codegen_free(&cg);
     return 0;
 }
 
+// ============================================================
+//  ENTRY POINT
+// ============================================================
+
+int main(int argc, char** argv) {
+    if (argc < 3) {
+        fprintf(stderr,
+            "Omnikarai Compiler (omnicc)\n"
+            "Usage:\n"
+            "  omnicc run   <file.ok>   compile and run\n"
+            "  omnicc build <file.ok>   compile to .exe  (coming soon)\n"
+            "  omnicc dump  <file.ok>   dump machine code bytes\n"
+        );
+        return 1;
+    }
+
+    const char* cmd      = argv[1];
+    const char* filepath = argv[2];
+
+    if (strcmp(cmd, "run") == 0)   return cmd_run(filepath);
+    if (strcmp(cmd, "dump") == 0)  return cmd_dump(filepath);
+    if (strcmp(cmd, "build") == 0) {
+        fprintf(stderr, "omnicc build: PE writer coming in next phase.\n");
+        return 1;
+    }
+
+    fprintf(stderr, "Unknown command '%s'\n", cmd);
+    return 1;
+}

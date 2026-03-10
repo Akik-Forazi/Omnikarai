@@ -1,28 +1,21 @@
-CC = gcc # Changed from gcc to clang
-CFLAGS=-Iinclude -Wall -Wextra -std=c99 -g # Added -g for debug symbols
-TARGET=bin/omnicc
-# SOURCES=$(wildcard src/*.c) # This already includes compiler.c and omni_runtime.c
+CC     = gcc
+CFLAGS = -Iinclude -Wall -Wextra -std=c99 -O2
+LDFLAGS = -lkernel32
 
-# Explicitly list object files to ensure all new sources are compiled
-OBJECTS=src/main.o src/lexer.o src/parser.o src/compiler.o src/omni_runtime.o
+TARGET  = bin/omnicc.exe
+SOURCES = src/main.c src/lexer.c src/parser.c src/codegen.c
+OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS) | bin
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
-
-# Rule to compile .c to .o
-src/%.o: src/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
+$(TARGET): $(SOURCES) | bin
+	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
 
 bin:
-	mkdir -p bin
+	mkdir bin
 
 clean:
-	rm -f $(TARGET)
-	rm -f src/*.o # Clean up object files
-	# Clean up temporary Omnikarai generated files
-	rm -f $(shell find . -name "*_omni_temp.c")
-	rm -f $(shell find . -name "*_omni_temp.exe")
+	del /Q bin\omnicc.exe 2>NUL
+	del /Q src\*.o 2>NUL
 
 .PHONY: all clean

@@ -68,18 +68,19 @@ typedef struct {
 // Lexer state
 typedef struct {
     const char *input;
+    size_t input_len;     // PERF FIX: cached length, avoids O(n^2) strlen() on every char
     size_t position;      // current position in input (points to current char)
     size_t readPosition;  // current reading position in input (after current char)
-    char ch;           // current char under examination
-    
-    int at_bol;        // Is the lexer at the beginning of a line?
-    int line_num;      // Current line number
+    char ch;              // current char under examination
+
+    int at_bol;           // Is the lexer at the beginning of a line?
+    int line_num;         // Current line number
 
     // Indentation stack
     int* indent_stack;
     int indent_level;
 
-    // Queue for pending DEDENT tokens
+    // Queue for pending INDENT/DEDENT/NL tokens
     Token* pending_tokens;
     int pending_count;
 } Lexer;
