@@ -1,0 +1,3 @@
+set a = int(input("Input something: "))
+set b = int(input("Input a number: "))
+print(a + b)

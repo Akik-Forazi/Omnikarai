@@ -1,13 +1,28 @@
-# Omnikarai Language Specification (v5.0)
+# Omnikarai Language Specification (v6.0)
+
+> **Creator:** Akik Faraji — Fraziym Tech & AI  
+> **Compiler:** `omnicc` (x86-64 native, Windows)  
+> **Package Manager:** `omnip` (Omnikarai Package Index)  
+> **File Extension:** `.ok`
+
+---
 
 ## 1. Overview
 
-Omnikarai is a **high-level, dynamically typed language** with the following characteristics:
+Omnikarai is a **high-level, indentation-sensitive language** that compiles directly to native x86-64 machine code on Windows — no LLVM, no VM, no bytecode, no interpreter.
 
-* **Readable & Expressive:** Minimal punctuation, indentation-based code blocks.
-* **Dynamic Typing:** Variables infer their type at runtime.
-* **JIT Compilation:** `omnicc` compiles and runs `.ok` files on-the-fly.
-* **Module System:** Managed by `omnip`, analogous to Python's pip.
+**Core principles:**
+
+- **Readable:** Minimal punctuation, Python-like indentation blocks
+- **Native:** Compiles straight to x86-64 bytes via `omnicc`, runs via `VirtualAlloc`
+- **Zero dependencies:** The compiler is pure C with only `kernel32` linkage
+- **Pythonic feel, C-level speed:** Familiar syntax, machine-code execution
+
+**Compiler pipeline:**
+
+```
+source.ok → Lexer → Parser → AST → x86-64 Codegen → VirtualAlloc → Execute
+```
 
 ---
 
@@ -15,119 +30,201 @@ Omnikarai is a **high-level, dynamically typed language** with the following cha
 
 ### 2.1 Identifiers
 
-* Must start with a letter or `_`.
-* Can contain letters, digits, `_`.
+- Must start with a letter or `_`
+- Can contain letters, digits, `_`
+- Case-sensitive
 
 ```omnikarai
 set name = "Alice"
 set _counter123 = 0
+set MY_CONST = 42
 ```
 
 ### 2.2 Keywords
 
 ```
-set, fn, class, init, if, elif, else, match, case, while, for, in, return, use, true, false, nil
+set  fn  class  init  if  elif  else  match  case
+while  for  in  return  use  as  true  false  nil
+and  or  not  break  continue  self
 ```
 
 ### 2.3 Comments
 
 ```omnikarai
 # single-line comment
-#| multi-line comment |#
+#| multi-line
+   comment |#
 ```
 
 ### 2.4 Literals
 
-* **Numbers:** Integers (10), Floats (3.14)
-* **Strings:** `'text'` or `"text"`
-* **Booleans:** `true`, `false`
-* **Nil:** `nil`
+| Type    | Examples                     |
+|---------|------------------------------|
+| Integer | `10`, `0`, `-5`              |
+| Float   | `3.14`, `1.0`                |
+| Hex     | `0xFF`, `0x1A`               |
+| Binary  | `0b1010`, `0b0001`           |
+| String  | `"hello"`, `'world'`         |
+| Boolean | `true`, `false`              |
+| Nil     | `nil`                        |
 
 ---
 
-## 3. Variables and Assignment
+## 3. Variables
 
 ```omnikarai
-set x = 42       # declaration
-x = x + 1        # reassignment
+set x = 42          # declaration — always use 'set' for first assignment
+x = x + 1           # re-assignment — no 'set' needed
 ```
 
-* `set` is only used for initial declaration.
-* No type annotation needed; type is dynamic.
+- `set` declares a new variable in the current scope
+- Re-assignment without `set` updates an existing variable
+- All values are 64-bit internally (int64, bool as 0/1, str as char*)
+- Type is inferred — no annotations needed
 
 ---
 
 ## 4. Expressions
 
-* Arithmetic: `+ - * / % **`
-* Comparison: `== != > < >= <=`
-* Logical: `and or not`
+### 4.1 Arithmetic
 
 ```omnikarai
 set a = 10 + 5
-if a > 12 and a < 20:
-    print("Valid")
+set b = a * 2
+set c = b / 3
+set d = a - 1
 ```
+
+Operators: `+  -  *  /  %  **`
+
+> ⚠️ **Note (v6.0):** Operator precedence (`*` before `+`) is not yet implemented in the parser. Expressions are evaluated left-to-right. Use parentheses to enforce order: `set c = a + (b * 2)`
+
+### 4.2 Comparison
+
+```omnikarai
+set eq  = 10 == 10   # true
+set neq = 10 != 9    # true
+set lt  = 5 < 10     # true
+set gt  = 10 > 5     # true
+set lte = 5 <= 5     # true
+set gte = 6 >= 5     # true
+```
+
+### 4.3 Logical
+
+```omnikarai
+if a > 0 and a < 100:
+    print("in range")
+
+if not is_done:
+    print("still working")
+```
+
+Operators: `and  or  not`
 
 ---
 
 ## 5. Control Flow
 
-### 5.1 If-elif-else
+### 5.1 If / Elif / Else
 
 ```omnikarai
-if condition:
-    # code
-elif condition2:
-    # code
+if score >= 90:
+    print("A")
+elif score >= 75:
+    print("B")
+elif score >= 60:
+    print("C")
 else:
-    # code
+    print("F")
 ```
 
-### 5.2 Match-case (pattern matching)
+### 5.2 While Loop
 
 ```omnikarai
-match code:
-    case 200: print("OK")
-    case 404: print("Not Found")
-    case 500..599: print("Server Error")
-    case _: print("Unknown")
-```
-
-### 5.3 Loops
-
-```omnikarai
-# While loop
+set counter = 0
 while counter < 5:
-    counter = counter + 1
-
-# For loop
-for fruit in ["apple", "banana"]:
-    print(fruit)
+    print(counter)
+    set counter = counter + 1
 ```
+
+### 5.3 For Loop *(parsed, codegen coming)*
+
+```omnikarai
+for item in items:
+    print(item)
+
+for i in range(10):
+    print(i)
+```
+
+> ⚠️ `for` is parsed and produces a valid AST, but codegen for iteration is not yet implemented. Use `while` for now.
+
+### 5.4 Match / Case *(parsed, codegen coming)*
+
+```omnikarai
+match status_code:
+    case 200:
+        print("OK")
+    case 404:
+        print("Not Found")
+    case _:
+        print("Unknown")
+```
+
+> ⚠️ `match` is parsed but codegen not yet implemented.
 
 ---
 
 ## 6. Functions
 
+### 6.1 Definition
+
 ```omnikarai
 fn add(x, y):
     return x + y
-
-set result = add(5, 10)
 ```
 
-* Functions are first-class objects.
-* Supports default arguments, variable-length arguments:
+### 6.2 Calling
 
 ```omnikarai
-fn greet(name="World", *args):
-    print("Hello " + name)
+set result = add(5, 10)
+print(result)
 ```
+
+> ⚠️ **v6.0 status:** `fn` definitions are parsed and produce a valid AST. User-defined function *calls* are not yet compiled by codegen — this is the next major milestone. Currently only the built-in `print()` is callable.
+
+### 6.3 Return
+
+```omnikarai
+fn classify(n):
+    if n > 0:
+        return "positive"
+    elif n < 0:
+        return "negative"
+    else:
+        return "zero"
+```
+
+- `return` exits the current function and passes the value back
+- Dead code after `return` is silently ignored (same as Python)
+- Top-level `return` sets the program exit code
 
 ---
 
-## 7. Classes
+## 7. Built-in Functions (currently implemented)
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `print(x)` | Prints value + newline | `print("hello")` |
+| `print(n)` | Prints integer + newline | `print(42)` |
+| `print(b)` | Prints `true`/`false` + newline | `print(true)` |
+
+All output goes through `WriteFile` (Win32 kernel) — no CRT dependency.
+
+---
+
+## 8. Classes
 
 ```omnikarai
 class Person:
@@ -137,45 +234,49 @@ class Person:
 
     fn greet(self):
         print("Hello, " + self.name)
+
+set p = Person("Alice", 30)
+p.greet()
 ```
 
-* Methods must include `self` for instance reference.
-* `init` is the constructor.
+- `init` is the constructor
+- `self` refers to the current instance
+- Methods must declare `self` as first parameter
+
+> ⚠️ `class` is parsed and produces an AST. Codegen for class instantiation and method dispatch is planned for a future phase.
 
 ---
 
-## 8. Collections
+## 9. Collections *(parsed, codegen coming)*
 
-### 8.1 Lists
+### 9.1 Lists
 
 ```omnikarai
 set fruits = ["apple", "banana", "cherry"]
 fruits.append("orange")
+print(len(fruits))
 ```
 
-### 8.2 Dictionaries
+### 9.2 Dictionaries
 
 ```omnikarai
 set person = {"name": "Alice", "age": 30}
 person["city"] = "Dhaka"
 ```
 
-### 8.3 Tuples (immutable)
+### 9.3 Tuples
 
 ```omnikarai
 set point = (10, 20)
 ```
 
+> ⚠️ Collections are in the language design and will be implemented in the runtime phase.
+
 ---
 
-## 9. Modules (Omnip)
+## 10. Modules (`use` / `omnip`)
 
-* `omnip` is the module manager.
-* **Install a module:** `omnip install requests`
-* **Remove module:** `omnip uninstall requests`
-* **List modules:** `omnip list`
-
-### 9.1 Importing
+### 10.1 Importing
 
 ```omnikarai
 use math
@@ -185,40 +286,71 @@ use collections.Array as MyList
 set items = MyList.new()
 ```
 
----
-
-## 10. Compiler & Execution (`omnicc`)
-
-* **Compile-and-run command:**
+### 10.2 Omnip package manager
 
 ```bash
-omnicc hello.ok
+omnip install requests      # install from OPi (Omnikarai Package Index)
+omnip install .             # install local module
+omnip uninstall requests    # remove module
+omnip list                  # show installed modules
+omnip publish .             # publish to OPi
 ```
 
-* Acts as **JIT compiler**:
+### 10.3 Module packaging (`omnikarai.toml`)
 
-  * Lexer → Parser → AST → JIT Compilation → Execute
-* Runtime output appears directly in terminal.
+```toml
+[metadata]
+name = "my_module"
+version = "1.0.0"
+author = "Akik Faraji"
+description = "My Omnikarai module"
+license = "MIT"
 
-### 10.1 Execution flow
+[dependencies]
+math = ">=1.0"
+```
 
-1. Parse `.ok` file.
-2. Build AST.
-3. Compile AST to optimized bytecode.
-4. Run bytecode in runtime VM.
+Installed modules live at: `~/.omnikarai/modules/`  
+Registry at: `~/.omnip/installed_modules.json`
 
----
-
-## 11. Standard Library
-
-* `math` → `sqrt`, `sin`, `cos`
-* `collections` → `Array`, `Map`
-* `os` → file and system operations
-* `io` → print, read input
+> ⚠️ `use` is lexed and parsed. Module loading and `omnip` are planned for the next development phase after user-defined function calls are implemented.
 
 ---
 
-## 12. Error Handling
+## 11. Compiler CLI (`omnicc`)
+
+```bash
+omnicc run   file.ok    # compile and run immediately
+omnicc build file.ok    # compile to .exe  (coming soon — PE writer)
+omnicc dump  file.ok    # dump generated x86-64 machine code bytes
+```
+
+### 11.1 What `omnicc run` does internally
+
+1. `read_file()` — loads `.ok` source
+2. `lexer_init()` — tokenizes, emits INDENT/DEDENT tokens
+3. `new_parser()` + `parse_program()` — builds AST
+4. `codegen_compile()` — emits x86-64 bytes
+5. `VirtualAlloc(PAGE_EXECUTE_READWRITE)` — allocates executable memory
+6. Copies bytes → casts to function pointer → calls it
+7. Returns `int64_t` exit code
+8. `VirtualFree()` — releases memory
+
+### 11.2 Stack frame layout
+
+```
+[RBP]       ← saved caller RBP
+[RBP - 8]   ← first local variable
+[RBP - 16]  ← second local variable
+...
+[RSP]       ← current stack top (16-byte aligned before calls)
+```
+
+Shadow space (32 bytes) is reserved before every `call` for Windows x64 ABI compliance.
+
+---
+
+## 12. Error Handling *(future)*
 
 ```omnikarai
 try:
@@ -227,565 +359,127 @@ except Exception as e:
     print("Error:", e)
 ```
 
-* Future enhancement: structured exception classes.
+> Planned after class system and module loading are complete.
 
 ---
 
-## 13. File Structure for Development
+## 13. Standard Library (planned)
+
+| Module | Functions |
+|--------|-----------|
+| `math` | `sqrt`, `sin`, `cos`, `abs`, `floor`, `ceil` |
+| `collections` | `Array`, `Map`, `Set` |
+| `os` | file and system operations |
+| `io` | `print`, `input`, `open`, `read`, `write` |
+| `re` | regex matching |
+| `random` | random numbers |
+| `json` | JSON encode/decode |
+
+---
+
+## 14. What Works Right Now (v6.0)
+
+| Feature | Status |
+|---------|--------|
+| Lexer (all tokens, INDENT/DEDENT) | ✅ Complete |
+| Parser (all statements/expressions) | ✅ Complete |
+| `set` variable declaration | ✅ Codegen working |
+| Variable re-assignment | ✅ Codegen working |
+| Integer arithmetic `+ - * /` | ✅ Codegen working |
+| Comparison operators `== != < > <= >=` | ✅ Codegen working |
+| `if / elif / else` | ✅ Codegen working |
+| `while` loop | ✅ Codegen working |
+| `print()` built-in (int, str, bool) | ✅ Codegen working |
+| `return` statement | ✅ Codegen working |
+| String literals | ✅ Codegen working |
+| Boolean literals `true / false` | ✅ Codegen working |
+| Negative numbers / prefix `-` | ✅ Codegen working |
+| `fn` definition | ✅ Parsed → codegen next |
+| `for` loop | ✅ Parsed → codegen next |
+| `match / case` | ✅ Parsed → codegen next |
+| `class` definition | ✅ Parsed → codegen next |
+| User-defined function calls | 🔜 Next milestone |
+| Collections (list, dict) | 🔜 Runtime phase |
+| `use` / module loading | 🔜 Module phase |
+| `omnip` package manager | 🔜 Module phase |
+| PE writer (`omnicc build`) | 🔜 Future |
+| Operator precedence (`*` before `+`) | 🔜 Parser fix needed |
+| `try / except` | 🔜 Future |
+
+---
+
+## 15. Project File Structure
 
 ```
-Omnikarai/
-├─ bin/omnicc
-├─ src/
-│  ├─ main.c
-│  ├─ lexer.c
-│  ├─ parser.c
-│  ├─ compiler.c
-│  ├─ runtime.c
-├─ include/
-├─ modules/
-└─ tests/
+omniwin/
+├── bin/
+│   └── omnicc.exe
+├── src/
+│   ├── main.c          — CLI entry point (run/build/dump)
+│   ├── lexer.c         — tokenizer, INDENT/DEDENT emission
+│   ├── parser.c        — Pratt parser → AST
+│   └── codegen.c       — x86-64 native code emitter
+├── include/
+│   ├── lexer.h
+│   ├── parser.h
+│   ├── ast.h
+│   └── codegen.h
+├── docs/
+│   ├── SYNTAX.md           — this file
+│   ├── DEVELOPMENT.md      — compiler internals & history
+│   ├── development_plan.md — roadmap
+│   ├── SimpleGuide.md      — beginner's guide
+│   └── BuildYourOwnOmni.md — step-by-step language tutorial
+├── test.ok
+├── test_advanced.ok
+├── test_comprehensive.ok
+└── Makefile
 ```
 
 ---
 
-## 14. JIT Compilation Notes
+## 16. Example Programs
 
-* Each `.ok` file is **parsed and compiled in-memory** before execution.
-* Intermediate bytecode allows **optimizations**, such as:
-
-  * Constant folding
-  * Function inlining
-  * Loop unrolling (future optimization)
-
----
-
-## 15. Example Program
-
+### Hello World
 ```omnikarai
-# hello.ok
-set name = "Omnikarai"
-
-fn greet(user):
-    print("Hello, " + user)
-
-greet(name)
-
-# Run
-# omnicc hello.ok
+print("Hello, World!")
 ```
 
-**Terminal Output:**
-
-```
-Hello, Omnikarai
-```
-
-
-## A demo transformer
-
----
-
-### `transformer_demo.ok`
-
+### Variables and Arithmetic
 ```omnikarai
-# Omnikarai Transformer Demo
-# A minimal transformer to demonstrate ML concepts
-
-use math
-use random
-
-# ------------------------------
-# Utilities
-# ------------------------------
-fn softmax(x):
-    set exps = []
-    set sum_exp = 0
-    for i in x:
-        set e = math.exp(i)
-        exps.append(e)
-        sum_exp = sum_exp + e
-    set out = []
-    for e in exps:
-        out.append(e / sum_exp)
-    return out
-
-fn dot(a, b):
-    # dot product of two vectors
-    set sum = 0
-    for i in range(len(a)):
-        sum = sum + a[i] * b[i]
-    return sum
-
-fn matmul(a, b):
-    # simple matrix multiplication a[m][n] * b[n][p]
-    set result = []
-    for row in a:
-        set new_row = []
-        for j in range(len(b[0])):
-            set sum = 0
-            for k in range(len(row)):
-                sum = sum + row[k] * b[k][j]
-            new_row.append(sum)
-        result.append(new_row)
-    return result
-
-# ------------------------------
-# Attention Mechanism
-# ------------------------------
-fn scaled_dot_product_attention(Q, K, V):
-    # Q,K,V are matrices
-    set scores = matmul(Q, transpose(K))
-    # scale
-    set d_k = len(K[0])
-    for i in range(len(scores)):
-        for j in range(len(scores[0])):
-            scores[i][j] = scores[i][j] / math.sqrt(d_k)
-    # apply softmax row-wise
-    set attention = []
-    for row in scores:
-        attention.append(softmax(row))
-    # weighted sum
-    return matmul(attention, V)
-
-fn transpose(matrix):
-    set transposed = []
-    for i in range(len(matrix[0])):
-        set new_row = []
-        for row in matrix:
-            new_row.append(row[i])
-        transposed.append(new_row)
-    return transposed
-
-# ------------------------------
-# Toy Transformer Forward
-# ------------------------------
-fn transformer_forward(x, W_Q, W_K, W_V):
-    set Q = matmul(x, W_Q)
-    set K = matmul(x, W_K)
-    set V = matmul(x, W_V)
-    return scaled_dot_product_attention(Q, K, V)
-
-# ------------------------------
-# Demo
-# ------------------------------
-# Input: 3 tokens, embedding dim 4
-set x = [
-    [1, 0, 1, 0],
-    [0, 1, 0, 1],
-    [1, 1, 0, 0]
-]
-
-# Random weight matrices for Q, K, V
-set W_Q = [
-    [0.1, 0.2, 0.3, 0.4],
-    [0.2, 0.1, 0.0, 0.3],
-    [0.0, 0.3, 0.1, 0.2],
-    [0.1, 0.0, 0.2, 0.1]
-]
-
-set W_K = [
-    [0.2, 0.1, 0.0, 0.3],
-    [0.1, 0.3, 0.2, 0.0],
-    [0.0, 0.2, 0.1, 0.3],
-    [0.1, 0.0, 0.3, 0.2]
-]
-
-set W_V = [
-    [0.1, 0.0, 0.2, 0.1],
-    [0.0, 0.1, 0.0, 0.2],
-    [0.1, 0.2, 0.1, 0.0],
-    [0.0, 0.1, 0.2, 0.1]
-]
-
-set out = transformer_forward(x, W_Q, W_K, W_V)
-
-print("Input embeddings:")
-print(x)
-print("Transformer output:")
-print(out)
+set a = 100
+set b = 37
+set c = a - b
+print(a)
+print(b)
+print(c)
+return 0
 ```
 
----
-
-### ✅ How this works
-
-1. **Utilities:** `dot`, `matmul`, `softmax`, `transpose` implement basic linear algebra.
-2. **Attention:** `scaled_dot_product_attention` computes attention weights and weighted sum.
-3. **Transformer forward:** Simple single-head attention demo.
-4. **Execution:** Run in terminal with:
-
-```bash
-omnicc transformer_demo.ok
-```
-
-You’ll see input embeddings and the output matrix after applying attention.
-
-This is a **toy demonstration**, but you can extend it with:
-
-* Multi-head attention
-* Feed-forward layers
-* Tokenization / positional encoding
-* Mini-batching
-
----
-
-### `omnikarai_master_demo.ok`
-
+### If / Elif / Else
 ```omnikarai
-# ==================================================
-# Omnikarai Master Demo: EVERYTHING in one file
-# ==================================================
-
-# ------------------------------
-# Variables and Data Types
-# ------------------------------
-set name = "Omnikarai"
-set age = 5
-set height = 1.75
-set is_active = true
-set languages = ["Omnikarai", "Python", "C++"]
-set person = {"name": "Alice", "age": 30, "active": true}
-set scores = [85, 92, 78, 64]
-
-print("Name:", name)
-print("Age:", age)
-print("Height:", height)
-print("Languages:", languages)
-print("Person:", person)
-print("Scores:", scores)
-
-# ------------------------------
-# Functions
-# ------------------------------
-fn greet(user_name):
-    print("Hello, " + user_name + "!")
-
-fn add(x, y):
-    return x + y
-
-greet("Student")
-set sum_result = add(10, 20)
-print("Sum Result:", sum_result)
-
-# Lambda style function
-set multiply = fn(a, b): return a * b
-print("5 * 6 =", multiply(5, 6))
-
-# ------------------------------
-# Control Flow
-# ------------------------------
-set score = 85
-
+set score = 82
 if score >= 90:
-    print("Grade: A")
+    print("A")
 elif score >= 75:
-    print("Grade: B")
+    print("B")
 else:
-    print("Grade: C")
+    print("C")
+```
 
-# Loops
-print("Looping over numbers 0-4")
-for i in range(5):
+### While Loop
+```omnikarai
+set i = 0
+while i < 5:
     print(i)
-
-print("Looping over languages")
-for lang in languages:
-    print(lang)
-
-# While loop
-set counter = 0
-while counter < 3:
-    print("Counter:", counter)
-    counter = counter + 1
-
-# Match / pattern matching
-set status_code = 404
-match status_code:
-    case 200:
-        print("OK")
-    case 404:
-        print("Not Found")
-    case 500..599:
-        print("Server Error")
-    case _:
-        print("Unknown Status")
-
-# ------------------------------
-# Classes and Objects
-# ------------------------------
-class Animal:
-    fn init(self, name, species):
-        self.name = name
-        self.species = species
-    
-    fn speak(self):
-        print(self.name + " says hello!")
-
-set dog = Animal("Buddy", "Dog")
-dog.speak()
-
-# Class inheritance
-class Dog(Animal):
-    fn speak(self):
-        print(self.name + " barks loudly!")
-
-set rex = Dog("Rex", "Dog")
-rex.speak()
-
-# ------------------------------
-# Collections & Comprehensions
-# ------------------------------
-set squared = [x * x for x in range(5)]
-print("Squared List:", squared)
-
-set even_numbers = [x for x in range(10) if x % 2 == 0]
-print("Even numbers:", even_numbers)
-
-# Dict iteration
-for key, value in person.items():
-    print(key, "->", value)
-
-# Nested structures
-set nested = [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]
-for item in nested:
-    print(item["name"])
-
-# ------------------------------
-# File I/O
-# ------------------------------
-set filename = "omnikarai_test.txt"
-
-# Writing to a file
-try:
-    set file = open(filename, "w")
-    file.write("Omnikarai file I/O test.\nLine 2.")
-    file.close()
-except Exception as e:
-    print("Error writing file:", e)
-
-# Reading from a file
-try:
-    set file = open(filename, "r")
-    for line in file.readlines():
-        print("Read line:", line)
-    file.close()
-except Exception as e:
-    print("Error reading file:", e)
-
-# ------------------------------
-# Regex
-# ------------------------------
-use re
-
-set text = "My phone number is 123-456-7890."
-set pattern = r"\d{3}-\d{3}-\d{4}"
-set match = re.search(pattern, text)
-if match != nil:
-    print("Found phone number:", match.group(0))
-
-# ------------------------------
-# Exception Handling
-# ------------------------------
-try:
-    set result = 10 / 0
-except ZeroDivisionError as e:
-    print("Caught exception:", e)
-
-# ------------------------------
-# Mini ML: Linear Regression Example (JIT-style)
-# ------------------------------
-set X = [0, 1, 2, 3, 4]
-set Y = []
-
-# Generate Y = 2*X + 1
-for x in X:
-    Y.append(2 * x + 1)
-
-fn predict(x):
-    return 2 * x + 1
-
-print("Predictions:")
-for x in X:
-    print("x:", x, "y_pred:", predict(x))
-
-# ------------------------------
-# Module Manager Demo (Omnip)
-# ------------------------------
-# Assume we installed a module called math_utils using Omnip
-# use math_utils
-# print(math_utils.factorial(5))
-
-# ------------------------------
-# Demonstrating runtime code execution (JIT)
-# ------------------------------
-fn jit_demo(code):
-    # Simulate JIT by evaluating a string expression
-    print("Evaluating code:", code)
-    return eval(code)
-
-set result = jit_demo("5 * 7 + 2")
-print("JIT Result:", result)
-
-# ------------------------------
-# Final Statement
-# ------------------------------
-print("Omnikarai Master Demo complete! All major Python-equivalent features demonstrated.")
+    set i = i + 1
 ```
 
----
-
-### ✅ Features Demonstrated
-
-1. Variables: numbers, strings, bool, list, dict
-2. Functions: normal & lambda (`fn`)
-3. Control Flow: `if-elif-else`, `for`, `while`, `match`
-4. Classes & inheritance
-5. Collections & comprehensions
-6. File I/O (`open`, `read`, `write`)
-7. Regex (`re.search`)
-8. Exceptions (`try-except`)
-9. Mini ML (linear regression prediction)
-10. Module manager usage (`omnip`)
-11. JIT-style evaluation (`eval` simulation)
-
----
-
-**Run it:**
-
-```bash
-omnicc omnikarai_master_demo.ok
-```
-
-This is basically **Python 3 condensed into one Omnikarai file** with everything covered.
-
----
-
-
-## 1. Module Packaging
-
-Suppose you have a module you want to install locally:
-
-```
-my_module/
-├── my_module.ok          # The actual module
-├── omnikarai.toml        # Metadata (like setup.py or pyproject.toml)
-└── README.md
-```
-
-**Example `omnikarai.toml`:**
-
-```toml
-[metadata]
-name = "my_module"
-version = "1.0.0"
-author = "Akik Forazi"
-description = "A demonstration module for Omnikarai"
-license = "MIT"
-
-[dependencies]
-# other Omnikarai modules your module needs
-```
-
-* `omnikarai.toml` is **mandatory** for Omnip to register the module.
-* You can include dependencies just like Python’s `install_requires`.
-
----
-
-## 2. Local Installation (like `pip install .`)
-
-From the module root:
-
-```bash
-omnip install .
-```
-
-**What happens internally:**
-
-1. Omnip reads `omnikarai.toml`.
-2. Copies your `.ok` file to **the global module directory**, e.g.:
-
-```
-~/.omnikarai/modules/my_module.ok
-```
-
-3. Registers the module in **Omnip registry** (like a local database):
-
-```
-~/.omnip/installed_modules.json
-```
-
-4. After that, any Omnikarai program can do:
-
+### Booleans and Comparisons
 ```omnikarai
-use my_module
+set x = 42
+set is_big = x > 40
+print(is_big)
+print(x == 42)
+print(x != 0)
 ```
-
----
-
-## 3. Remote Installation (like PyPI)
-
-If you have a remote repository (Omnikarai Package Index, OPi):
-
-```bash
-omnip install my_module
-```
-
-* Omnip looks in the OPi index (like PyPI).
-* Downloads the module `.ok` and its metadata.
-* Registers it globally.
-
-Directory layout stays the same:
-
-```
-~/.omnikarai/modules/my_module.ok
-```
-
----
-
-## 4. Uninstalling
-
-```bash
-omnip uninstall my_module
-```
-
-* Removes the `.ok` file.
-* Cleans the registry.
-
----
-
-## 5. Publishing a Module
-
-To publish to OPi:
-
-```bash
-omnip publish .
-```
-
-* Omnip reads `omnikarai.toml`.
-* Packages the module (`.ok` + metadata).
-* Uploads it to OPi.
-
----
-
-## 6. Using Modules After Installation
-
-```omnikarai
-use my_module      # Access everything in the module
-use my_module as mm
-print(mm.some_function())
-```
-
----
-
-### TL;DR Comparison to Python
-
-| Python                        | Omnikarai                     |
-| ----------------------------- | ----------------------------- |
-| `setup.py` / `pyproject.toml` | `omnikarai.toml`              |
-| `pip install .`               | `omnip install .`             |
-| `pip uninstall`               | `omnip uninstall`             |
-| PyPI                          | OPi (Omnikarai Package Index) |
-
----
-

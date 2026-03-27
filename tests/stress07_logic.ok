@@ -1,0 +1,86 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 07 — Logic & Boolean Extremes
+#  Tests: and/or/not chains, boolean in variables,
+#         boolean arithmetic, complex conditions,
+#         short-circuit evaluation, nested logic
+#  Expected: all true/false printed correctly
+# ═══════════════════════════════════════════════════════════
+
+# --- basic booleans ---
+set t = true
+set f = false
+print(t)
+print(f)
+print(not t)
+print(not f)
+
+# --- and ---
+print(true and true)
+print(true and false)
+print(false and true)
+print(false and false)
+
+# --- or ---
+print(true or true)
+print(true or false)
+print(false or true)
+print(false or false)
+
+# --- not ---
+print(not true)
+print(not false)
+print(not not true)
+
+# --- chained logic ---
+set a = 5
+set b = 10
+set c = 15
+print(a < b and b < c)
+print(a < b and b > c)
+print(a > b or b < c)
+print(a > b or b > c)
+print(not (a == b))
+print(not (a < b))
+
+# --- boolean in if conditions ---
+set is_valid = true
+set is_admin = false
+if is_valid and not is_admin:
+    print("user")
+elif is_valid and is_admin:
+    print("admin")
+else:
+    print("invalid")
+
+# --- boolean from comparison stored in variable ---
+set big = 100 > 50
+set small = 100 < 50
+print(big)
+print(small)
+print(big and not small)
+
+# --- complex nested condition ---
+set x = 42
+set y = 0 - 7
+set z = 100
+if x > 0 and y < 0 and z > x:
+    print("complex-pass")
+else:
+    print("complex-fail")
+
+# --- boolean loop ---
+set done = false
+set count = 0
+while not done:
+    set count = count + 1
+    if count >= 5:
+        set done = true
+print(count)
+
+# --- comparing booleans ---
+print(true == true)
+print(false == false)
+print(true == false)
+print(true != false)
+
+return 0

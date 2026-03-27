@@ -1,0 +1,36 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 14 — List module
+#  Expected:
+#    0        (initial length)
+#    3        (after 3 pushes)
+#    10       (get index 0)
+#    20       (get index 1)
+#    30       (get index 2)
+#    30       (pop returns last)
+#    2        (length after pop)
+#    1        (contains 10)
+#    0        (contains 99)
+# ═══════════════════════════════════════════════════════════
+
+use list
+
+set L = list.new()
+print(list.len(L))
+
+list.push(L, 10)
+list.push(L, 20)
+list.push(L, 30)
+print(list.len(L))
+
+print(list.get(L, 0))
+print(list.get(L, 1))
+print(list.get(L, 2))
+
+set popped = list.pop(L)
+print(popped)
+print(list.len(L))
+
+print(list.contains(L, 10))
+print(list.contains(L, 99))
+
+list.free(L)

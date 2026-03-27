@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Search Packages — OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="opi.css">
+<style>
+.sort-bar{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.sort-btn{padding:.28rem .7rem;border-radius:999px;font-size:.72rem;font-family:var(--mono);background:rgba(139,107,255,.06);border:1px solid var(--line);color:var(--muted);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.sort-btn:hover{background:rgba(139,107,255,.12);color:var(--fg)}
+.sort-btn.active{background:rgba(139,107,255,.18);border-color:rgba(139,107,255,.45);color:var(--al)}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main class="page" style="position:relative;z-index:1">
+  <div style="margin-bottom:1.25rem">
+    <h1 style="font-size:1.5rem;font-weight:800;margin-bottom:1rem;letter-spacing:-.02em">Packages</h1>
+    <form id="sf" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">
+      <input id="q" type="text"
+        style="flex:1;min-width:200px;background:rgba(124,92,252,.05);border:1px solid var(--line2);border-radius:var(--r);padding:.65rem 1rem;color:var(--fg);font-size:.9rem;outline:none;transition:border-color .18s,box-shadow .18s;font-family:var(--sans)"
+        placeholder="Search packages, keywords, authors…" autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" type="submit" style="border-radius:var(--r)">Search</button>
+    </form>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+      <p id="rcount" style="font-size:.78rem;color:var(--muted);font-family:var(--mono)">Loading…</p>
+      <div class="sort-bar" id="sort-bar">
+        <span style="font-size:.7rem;color:var(--dim);font-family:var(--mono)">Sort:</span>
+        <button class="sort-btn" data-sort="downloads" onclick="setSort('downloads',this)">Downloads</button>
+        <button class="sort-btn active" data-sort="updated" onclick="setSort('updated',this)">Recently updated</button>
+        <button class="sort-btn" data-sort="name" onclick="setSort('name',this)">Name A–Z</button>
+      </div>
+    </div>
+  </div>
+  <div class="pkg-grid" id="results">
+    <div class="loading-center" style="grid-column:1/-1"><div class="spinner"></div></div>
+  </div>
+</main>
+<footer id="footer" class="footer"></footer>
+<script src="opi.js"></script>
+<script>
+let currentQuery='', currentSort='updated', allPkgs=[];
+
+function sortPkgs(pkgs, sort){
+  const list=[...pkgs];
+  if(sort==='downloads') list.sort((a,b)=>(b.total_downloads||0)-(a.total_downloads||0));
+  else if(sort==='name')  list.sort((a,b)=>a.name.localeCompare(b.name));
+  else                    list.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
+  return list;
+}
+
+function renderResults(){
+  const rg=qs('#results');
+  const sorted=sortPkgs(allPkgs,currentSort);
+  qs('#rcount').textContent=`${sorted.length} package${sorted.length!==1?'s':''}${currentQuery?` matching "${currentQuery}"`:' in registry'}`;
+  rg.innerHTML=sorted.length
+    ?sorted.map(pkgCard).join('')
+    :`<div class="empty" style="grid-column:1/-1">
+        <h3>No packages found</h3>
+        <p>Try different keywords or <a href="register.html">publish your own</a>.</p>
+      </div>`;
+}
+
+window.setSort=function(sort, btn){
+  currentSort=sort;
+  qsa('.sort-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderResults();
+};
+
+async function doSearch(query){
+  currentQuery=query;
+  qs('#results').innerHTML='<div class="loading-center" style="grid-column:1/-1"><div class="spinner"></div></div>';
+  qs('#rcount').textContent='Loading…';
+  const {ok,data}=await api(`/packages?q=${encodeURIComponent(query)}&limit=100`);
+  allPkgs=ok?(data.packages||[]):[];
+  if(!ok) qs('#rcount').textContent='Failed to load packages.';
+  else renderResults();
+}
+
+async function pageInit(){
+  const params=new URLSearchParams(location.search);
+  const q=params.get('q')||'';
+  qs('#q').value=q;
+  // focus search box if empty
+  if(!q) qs('#q').focus();
+
+  qs('#sf').onsubmit=e=>{
+    e.preventDefault();
+    const v=qs('#q').value.trim();
+    history.pushState({},'',(v?`search.html?q=${encodeURIComponent(v)}`:'search.html'));
+    doSearch(v);
+  };
+
+  // live search with debounce
+  let timer;
+  qs('#q').addEventListener('input',()=>{
+    clearTimeout(timer);
+    timer=setTimeout(()=>{
+      const v=qs('#q').value.trim();
+      history.replaceState({},'',(v?`search.html?q=${encodeURIComponent(v)}`:'search.html'));
+      doSearch(v);
+    },350);
+  });
+
+  qs('#q').addEventListener('focus',()=>{qs('#q').style.borderColor='var(--accent)';qs('#q').style.boxShadow='0 0 0 3px rgba(139,107,255,.14)'});
+  qs('#q').addEventListener('blur',()=>{qs('#q').style.borderColor='';qs('#q').style.boxShadow=''});
+
+  await doSearch(q);
+}
+</script>
+</body>
+</html>

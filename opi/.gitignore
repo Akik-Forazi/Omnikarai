@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+.vercel/
+opi-dev.db
+
+.vercel
+.env*.local

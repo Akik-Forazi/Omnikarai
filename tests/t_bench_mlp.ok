@@ -1,0 +1,92 @@
+# BENCHMARK — 4-layer MLP forward pass, hidden=128
+# Omnikarai Speed God Plan | Fraziym Tech | March 2026
+#
+# Network: input(128) -> hidden(128) -> hidden(128) -> hidden(128) -> output(10)
+# This is the exact benchmark from the Speed God Plan document.
+# Target: < 0.02ms per inference (beat C -O3 -march=native)
+#
+# How it works:
+#   ai.alloc(n)       — 64-byte aligned malloc (cache-line optimal)
+#   ai.matmul(A,x,y,rows,cols) — AVX2 VFMADD231PS, L1-tiled
+#   ai.relu(y,n)      — AVX2 VMAXPS in-place
+#   ai.bench_start()  — high-res QueryPerformanceCounter
+#   ai.bench_end_us() — microseconds since start
+
+use ai
+use time
+
+# Allocate weight matrices (row-major, 64-byte aligned)
+# W1: 128x128 = 16384 floats
+# W2: 128x128 = 16384 floats
+# W3: 128x128 = 16384 floats
+# W4: 10x128  = 1280 floats
+set W1 = ai.alloc(16384)
+set W2 = ai.alloc(16384)
+set W3 = ai.alloc(16384)
+set W4 = ai.alloc(1280)
+
+# Allocate activation buffers
+set x   = ai.alloc(128)
+set h1  = ai.alloc(128)
+set h2  = ai.alloc(128)
+set h3  = ai.alloc(128)
+set out = ai.alloc(10)
+
+# Initialize weights to small constant (simulating pretrained)
+# 1.0f/128 = 0.0078125f = bits 0x3C000000 = 1006632960
+ai.fill(W1, 1006632960, 16384)
+ai.fill(W2, 1006632960, 16384)
+ai.fill(W3, 1006632960, 16384)
+ai.fill(W4, 1006632960, 1280)
+
+# Initialize input to 1.0f = 1065353216
+ai.fill(x, 1065353216, 128)
+
+# --- WARMUP: 10 passes to warm L3 cache ---
+set warmup = 0
+while warmup < 10:
+    ai.matmul(W1, x,   h1, 128, 128)
+    ai.relu(h1, 128)
+    ai.matmul(W2, h1,  h2, 128, 128)
+    ai.relu(h2, 128)
+    ai.matmul(W3, h2,  h3, 128, 128)
+    ai.relu(h3, 128)
+    ai.matmul(W4, h3, out,  10, 128)
+    set warmup = warmup + 1
+
+# --- TIMED: 1000 inferences ---
+set t0 = ai.bench_start()
+
+set i = 0
+while i < 1000:
+    ai.matmul(W1, x,   h1, 128, 128)
+    ai.relu(h1, 128)
+    ai.matmul(W2, h1,  h2, 128, 128)
+    ai.relu(h2, 128)
+    ai.matmul(W3, h2,  h3, 128, 128)
+    ai.relu(h3, 128)
+    ai.matmul(W4, h3, out,  10, 128)
+    set i = i + 1
+
+set total_us = ai.bench_end_us(t0)
+
+# total_us / 1000 = us per inference
+set us_per = total_us / 1000
+
+print(total_us)
+print(us_per)
+
+# Sanity check: output[0] should be non-zero
+set o0 = ai.get(out, 0)
+print(o0)
+
+# Free everything
+ai.free(W1)
+ai.free(W2)
+ai.free(W3)
+ai.free(W4)
+ai.free(x)
+ai.free(h1)
+ai.free(h2)
+ai.free(h3)
+ai.free(out)

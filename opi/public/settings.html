@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings — OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="opi.css">
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main class="page" style="max-width:660px;position:relative;z-index:1">
+  <h1 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;letter-spacing:-.02em">Account Settings</h1>
+  <div id="root"><div class="loading-center"><div class="spinner"></div></div></div>
+</main>
+<footer id="footer" class="footer"></footer>
+<script src="opi.js"></script>
+<script>
+async function pageInit(){
+  if(!Auth.isLoggedIn()){location.href='login.html';return}
+  const user=await Auth.fetchUser();
+  if(!user){location.href='login.html';return}
+
+  qs('#root').innerHTML=`
+  <div class="panel" style="margin-bottom:1.25rem">
+    <div class="panel-hdr"><span>Public Profile</span></div>
+    <div style="padding:1.1rem">
+      <div id="pa"></div>
+      <form id="pf">
+        <div class="form-group">
+          <label>Username</label>
+          <input value="${esc(user.username)}" disabled style="color:var(--dim);cursor:not-allowed">
+          <div class="form-hint">Username cannot be changed.</div>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input value="${esc(user.email)}" disabled style="color:var(--dim);cursor:not-allowed">
+        </div>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input id="dn" value="${esc(user.display_name||'')}" placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label>Bio</label>
+          <textarea id="bio" placeholder="A short bio…">${esc(user.bio||'')}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:1.1rem">
+          <label>Website</label>
+          <input id="ws" type="url" value="${esc(user.website||'')}" placeholder="https://yoursite.dev">
+        </div>
+        <button class="btn btn-primary" style="border-radius:var(--r)" type="submit" id="sv">Save changes</button>
+      </form>
+    </div>
+  </div>
+  <div class="panel" style="border-color:rgba(255,107,138,.25)">
+    <div class="panel-hdr" style="color:var(--acc3)"><span>Danger Zone</span></div>
+    <div style="padding:1rem">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.85rem">These actions cannot be undone.</p>
+      <button class="btn btn-danger btn-sm" onclick="if(confirm('Delete your account? This cannot be undone.'))Auth.logout()">Delete account</button>
+    </div>
+  </div>`;
+
+  qs('#pf').onsubmit=async e=>{
+    e.preventDefault();
+    const btn=qs('#sv');
+    btn.disabled=true;btn.textContent='Saving…';
+    qs('#pa').innerHTML='';
+    const {ok,data}=await api('/user/profile',{method:'PATCH',body:JSON.stringify({
+      display_name:qs('#dn').value.trim(),
+      bio:qs('#bio').value.trim(),
+      website:qs('#ws').value.trim()
+    })});
+    if(ok){
+      qs('#pa').innerHTML='<div class="alert alert-success" style="margin-bottom:.75rem">Profile saved successfully.</div>';
+      Auth.setUser({...Auth.getUser(),display_name:qs('#dn').value.trim()});
+      renderNav();
+    } else {
+      qs('#pa').innerHTML=`<div class="alert alert-error" style="margin-bottom:.75rem">${esc(data.error||'Save failed. Please try again.')}</div>`;
+    }
+    btn.disabled=false;btn.textContent='Save changes';
+  };
+}
+</script>
+</body>
+</html>

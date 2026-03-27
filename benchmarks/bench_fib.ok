@@ -1,0 +1,13 @@
+# bench_fib.ok — Recursive Fibonacci, fib(40) x 5 reps
+# fib(40) = ~330M recursive calls — shows true sustained compute speed
+fn fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+set reps = 0
+set result = 0
+while reps < 5:
+    set result = fib(40)
+    set reps = reps + 1
+print(result)

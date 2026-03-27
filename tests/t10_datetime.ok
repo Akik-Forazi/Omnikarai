@@ -1,0 +1,40 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 10 — Datetime module
+#  Expected: current date/time values (just check no crash)
+#    (year like 2025 or 2026)
+#    (month 1-12)
+#    (day 1-31)
+#    (hour 0-23)
+#    (minute 0-59)
+#    (second 0-59)
+#    (formatted date string like "2026-03-10")
+#    (formatted datetime string like "2026-03-10 14:30:00")
+#    (timezone offset in minutes, e.g. 360 for BDT)
+# ═══════════════════════════════════════════════════════════
+
+use datetime
+
+set now = datetime.now()
+
+set yr = datetime.year(now)
+set mo = datetime.month(now)
+set dy = datetime.day(now)
+set hr = datetime.hour(now)
+set mn = datetime.minute(now)
+set sc = datetime.second(now)
+
+print(yr)
+print(mo)
+print(dy)
+print(hr)
+print(mn)
+print(sc)
+
+set date_str = datetime.format_date(now)
+set dt_str   = datetime.format(now)
+
+print(date_str)
+print(dt_str)
+
+set tz = datetime.timezone()
+print(tz)

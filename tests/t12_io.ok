@@ -1,0 +1,32 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 12 — IO module: write, read, append, exists, delete
+#  Expected:
+#    1        (write succeeded)
+#    1        (file exists)
+#    Hello Omnikarai
+#    1        (append succeeded)
+#    1        (delete succeeded)
+#    0        (file no longer exists)
+# ═══════════════════════════════════════════════════════════
+
+use io
+
+set path = "test_io_tmp.txt"
+
+set ok = io.write(path, "Hello Omnikarai")
+print(ok)
+
+set exists = io.exists(path)
+print(exists)
+
+set content = io.read(path)
+print(content)
+
+set ok2 = io.append(path, "\nLine 2")
+print(ok2)
+
+set ok3 = io.delete(path)
+print(ok3)
+
+set gone = io.exists(path)
+print(gone)

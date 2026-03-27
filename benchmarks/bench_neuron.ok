@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────
+#  bench_neuron.ok  — AI: ReLU Neuron Activation Layer
+#  Workload : 256 neurons x 128 inputs + ReLU, 500 reps
+#  ReLU: if x > 0 use x else 0  (integer approximation)
+#  Tests: branch-heavy inner loop + multiply-accumulate
+#  Expected : stable nonzero integer (activation sum)
+# ─────────────────────────────────────────────────────────────
+fn relu(x):
+    if x > 0:
+        return x
+    return 0
+
+fn layer(inputs, neurons):
+    set total = 0
+    set n = 0
+    while n < neurons:
+        set acc = 0
+        set i = 0
+        while i < inputs:
+            set w = (n * inputs + i + 1) % 11
+            set x = (i - inputs / 2) * w
+            set acc = acc + relu(x)
+            set i = i + 1
+        set total = total + acc
+        set n = n + 1
+    return total
+
+set reps = 0
+set result = 0
+while reps < 2000:
+    set result = layer(128, 256)
+    set reps = reps + 1
+print(result)

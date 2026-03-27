@@ -1,0 +1,73 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 05 — Lists Full Coverage
+#  Tests: list.new, push, pop, get, set, len, print,
+#         list inside loop, list as function arg/return,
+#         multiple lists at once
+#  Expected: all correct output, no crash
+# ═══════════════════════════════════════════════════════════
+
+use list
+
+# --- create and push ---
+set nums = list.new()
+list.push(nums, 10)
+list.push(nums, 20)
+list.push(nums, 30)
+list.push(nums, 40)
+list.push(nums, 50)
+print(list.len(nums))
+
+# --- get by index ---
+print(list.get(nums, 0))
+print(list.get(nums, 2))
+print(list.get(nums, 4))
+
+# --- set by index ---
+list.set(nums, 0, 99)
+print(list.get(nums, 0))
+
+# --- pop ---
+set last = list.pop(nums)
+print(last)
+print(list.len(nums))
+
+# --- print all ---
+list.print(nums)
+
+# --- build list in loop ---
+set squares = list.new()
+set i = 1
+while i <= 5:
+    list.push(squares, i * i)
+    set i = i + 1
+list.print(squares)
+
+# --- multiple lists ---
+set evens = list.new()
+set odds = list.new()
+set k = 0
+while k < 10:
+    if k % 2 == 0:
+        list.push(evens, k)
+    else:
+        list.push(odds, k)
+    set k = k + 1
+print(list.len(evens))
+print(list.len(odds))
+list.print(evens)
+list.print(odds)
+
+# --- list as accumulator ---
+fn build_range(n):
+    set result = list.new()
+    set j = 0
+    while j < n:
+        list.push(result, j)
+        set j = j + 1
+    return result
+
+set r = build_range(5)
+list.print(r)
+print(list.len(r))
+
+return 0

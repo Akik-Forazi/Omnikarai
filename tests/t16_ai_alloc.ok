@@ -1,0 +1,20 @@
+# TEST 16 — ai module: alloc, set, get, fill, free
+# Expected:
+#   1       (first element = 1.0 bits = 1065353216, we print as int — actually test it works)
+#   8       (8th element = 8th fill value)
+#   0       (free returns 0)
+
+use ai
+
+set arr = ai.alloc(16)
+ai.set(arr, 0, 1065353216)
+ai.set(arr, 7, 1090519040)
+
+set v0 = ai.get(arr, 0)
+set v7 = ai.get(arr, 7)
+
+print(v0)
+print(v7)
+
+set gone = ai.free(arr)
+print(gone)

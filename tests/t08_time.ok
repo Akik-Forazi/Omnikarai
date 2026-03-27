@@ -1,0 +1,29 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 08 — Time module
+#  Expected: numbers + time string (values vary, just check no crash)
+#    (ms value >= 0)
+#    (us value >= 0)
+#    (ns value >= 0)
+#    (format string like "0ms" or "1ms")
+#    done
+# ═══════════════════════════════════════════════════════════
+
+use time
+
+set t0 = time.now()
+
+# Do some work
+set x = 0
+for i in range(1000):
+    set x = x + i
+
+set elapsed_ms = time.ms(t0)
+set elapsed_us = time.us(t0)
+set elapsed_ns = time.ns(t0)
+set label = time.format(t0)
+
+print(elapsed_ms)
+print(elapsed_us)
+print(elapsed_ns)
+print(label)
+print("done")

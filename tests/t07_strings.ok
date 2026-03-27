@@ -1,0 +1,29 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 07 — Strings: str(), int(), len(), str.concat()
+#  Expected:
+#    42
+#    hello world
+#    11
+#    helloworld
+#    5
+#    100
+# ═══════════════════════════════════════════════════════════
+
+set n = 42
+set s = str(n)
+set back = int(s)
+print(back)
+
+set greeting = "hello world"
+print(greeting)
+print(len(greeting))
+
+set a = "hello"
+set b = "world"
+set c = str.concat(a, b)
+print(c)
+print(len(a))
+
+set num_str = "100"
+set num = int(num_str)
+print(num)

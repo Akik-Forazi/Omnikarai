@@ -1,0 +1,8 @@
+fn factorial(n):  
+    print(n)  
+    if n <= 1:  
+        return 1  
+    set tmp = factorial(n - 1)  
+    return n * tmp  
+  
+print(factorial(3))  

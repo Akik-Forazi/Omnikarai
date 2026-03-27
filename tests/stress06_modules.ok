@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 06 — Modules: time, datetime, os, sys, io
+#  Tests: every implemented module function, edge cases,
+#         combining modules, real-world usage patterns
+#  Expected: no crash, sensible output
+# ═══════════════════════════════════════════════════════════
+
+use time
+use datetime
+use os
+use sys
+use io
+
+# --- sys module ---
+set ver = sys.version()
+set arch = sys.arch()
+set bits = sys.bits()
+print(ver)
+print(arch)
+print(bits)
+
+# --- os module ---
+set plat = os.platform()
+set cwd = os.cwd()
+set pid = os.getpid()
+print(plat)
+print(pid > 0)
+
+# --- time module ---
+set t1 = time.now()
+set t2 = time.now()
+print(t1 >= 0)
+print(t2 >= t1)
+
+# --- time.sleep (very short) ---
+time.sleep(1)
+print(1)
+
+# --- datetime module ---
+set yr = datetime.year()
+set mo = datetime.month()
+set dy = datetime.day()
+print(yr >= 2026)
+print(mo >= 1)
+print(mo <= 12)
+print(dy >= 1)
+print(dy <= 31)
+
+# --- io module: write and read ---
+set test_path = "stress_test_io_tmp.txt"
+set write_ok = io.write(test_path, "Hello Omnikarai")
+print(write_ok)
+print(io.exists(test_path))
+set size = io.size(test_path)
+print(size > 0)
+set content = io.read(test_path)
+print(str.eq(content, "Hello Omnikarai"))
+set del_ok = io.delete(test_path)
+print(del_ok)
+print(io.exists(test_path))
+
+# --- io append ---
+set path2 = "stress_append_tmp.txt"
+io.write(path2, "line1")
+io.append(path2, "line2")
+set sz2 = io.size(path2)
+print(sz2 > 5)
+io.delete(path2)
+
+return 0

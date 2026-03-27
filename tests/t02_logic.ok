@@ -1,0 +1,20 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 02 — Logic: and, or, not
+#  Expected:
+#    true
+#    false
+#    true
+#    false
+#    false
+#    true
+# ═══════════════════════════════════════════════════════════
+
+set t = true
+set f = false
+
+print(t and t)
+print(t and f)
+print(f or t)
+print(f or f)
+print(not t)
+print(not f)

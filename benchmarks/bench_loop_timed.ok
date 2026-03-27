@@ -1,0 +1,8 @@
+use time
+set t0 = time.now()
+set s = 0
+for i in range(100000001):
+    set s = s + i
+set ms = time.ms(t0)
+print(s)
+print(ms)

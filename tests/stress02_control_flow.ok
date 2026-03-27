@@ -1,0 +1,94 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 02 — Control Flow Extremes
+#  Tests: deeply nested if/elif/else, while with all
+#         break/continue combos, for range variants,
+#         match with all case types, loops inside loops
+#  Expected: no crash, all values printed correctly
+# ═══════════════════════════════════════════════════════════
+
+# --- deeply nested if/elif/else ---
+set score = 73
+if score >= 90:
+    print("A")
+elif score >= 80:
+    print("B")
+elif score >= 70:
+    print("C")
+elif score >= 60:
+    print("D")
+else:
+    print("F")
+
+# --- if inside if inside if ---
+set x = 15
+if x > 10:
+    if x > 12:
+        if x > 14:
+            print("deep-pass")
+        else:
+            print("deep-fail-1")
+    else:
+        print("deep-fail-2")
+else:
+    print("deep-fail-3")
+
+# --- while counting up ---
+set i = 0
+while i < 5:
+    set i = i + 1
+print(i)
+
+# --- while counting down ---
+set j = 10
+while j > 0:
+    set j = j - 1
+print(j)
+
+# --- for range(n) ---
+set total = 0
+for k in range(10):
+    set total = total + k
+print(total)
+
+# --- for range with larger count ---
+set count = 0
+for n in range(100):
+    set count = count + 1
+print(count)
+
+# --- nested for loops ---
+set product = 0
+for a in range(3):
+    for b in range(3):
+        set product = product + 1
+print(product)
+
+# --- match basic ---
+set code = 404
+match code:
+    case 200:
+        print("ok")
+    case 404:
+        print("not-found")
+    case 500:
+        print("error")
+    case _:
+        print("unknown")
+
+# --- match with wildcard only ---
+set val = 999
+match val:
+    case 1:
+        print("one")
+    case _:
+        print("other")
+
+# --- while with break at exact boundary ---
+set n = 0
+while n < 1000:
+    set n = n + 1
+    if n == 7:
+        break
+print(n)
+
+return 0

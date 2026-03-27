@@ -1,0 +1,34 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 09 — Math module
+#  Expected:
+#    7          (abs(-7))
+#    10         (max(3,10))
+#    3          (min(3,10))
+#    2          (gcd(12,8))
+#    5          (clamp(5, 1, 10))
+#    1          (clamp(-5, 1, 10))
+#    10         (clamp(99, 1, 10))
+# ═══════════════════════════════════════════════════════════
+
+use math
+
+set a = math.abs(-7)
+print(a)
+
+set b = math.max(3, 10)
+print(b)
+
+set c = math.min(3, 10)
+print(c)
+
+set d = math.gcd(12, 8)
+print(d)
+
+set e = math.clamp(5, 1, 10)
+print(e)
+
+set f = math.clamp(-5, 1, 10)
+print(f)
+
+set g = math.clamp(99, 1, 10)
+print(g)

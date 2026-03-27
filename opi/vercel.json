@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/auth/register",  "destination": "/api/auth/register" },
+    { "source": "/api/auth/login",     "destination": "/api/auth/login" },
+    { "source": "/api/auth/logout",    "destination": "/api/auth/logout" },
+    { "source": "/api/auth/me",        "destination": "/api/auth/me" },
+    { "source": "/api/user/tokens",    "destination": "/api/user/tokens" },
+    { "source": "/api/user/profile",   "destination": "/api/user/profile" },
+    { "source": "/api/user/:username", "destination": "/api/user/profile" },
+    { "source": "/api/packages/:name", "destination": "/api/packages/[name]" },
+    { "source": "/api/packages",       "destination": "/api/packages" },
+    { "source": "/api/stats",          "destination": "/api/stats" },
+    { "source": "/api/migrate/seed",   "destination": "/api/migrate/seed" },
+    { "source": "/api/migrate",        "destination": "/api/migrate/index" },
+    { "source": "/package/:name",      "destination": "/public/package.html" },
+    { "source": "/user/:name",         "destination": "/public/user.html" },
+    { "source": "/search",             "destination": "/public/search.html" },
+    { "source": "/login",              "destination": "/public/login.html" },
+    { "source": "/register",           "destination": "/public/register.html" },
+    { "source": "/dashboard",          "destination": "/public/dashboard.html" },
+    { "source": "/settings",           "destination": "/public/settings.html" },
+    { "source": "/help",               "destination": "/public/help.html" },
+    { "source": "/",                   "destination": "/public/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin",  "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,DELETE,PATCH,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
+      ]
+    }
+  ]
+}

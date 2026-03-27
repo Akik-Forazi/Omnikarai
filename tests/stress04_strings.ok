@@ -1,0 +1,75 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 04 — Strings & Text Processing
+#  Tests: all string operations, concatenation chains,
+#         str.concat, str.len, str.eq, str.slice,
+#         str.toint, str.fromint, type conversion
+#  Expected: all correct output, no crash
+# ═══════════════════════════════════════════════════════════
+
+use str
+
+# --- basic strings ---
+set hello = "Hello"
+set world = "World"
+print(hello)
+print(world)
+
+# --- concatenation ---
+set hw = str.concat(hello, " ")
+set hw2 = str.concat(hw, world)
+print(hw2)
+
+# --- length ---
+print(str.len(""))
+print(str.len("a"))
+print(str.len("Hello"))
+print(str.len("Hello, World!"))
+
+# --- str/int conversion ---
+set n = 42
+set s = str(n)
+set back = int(s)
+print(s)
+print(back)
+
+set n2 = 0 - 100
+set s2 = str(n2)
+print(s2)
+
+# --- equality ---
+set a = "hello"
+set b = "hello"
+set c = "world"
+print(str.eq(a, b))
+print(str.eq(a, c))
+
+# --- slice ---
+set word = "Omnikarai"
+print(str.slice(word, 0, 4))
+print(str.slice(word, 4, 9))
+
+# --- concat chain ---
+set result = "a"
+set result = str.concat(result, "b")
+set result = str.concat(result, "c")
+set result = str.concat(result, "d")
+set result = str.concat(result, "e")
+print(result)
+
+# --- strings as function args ---
+fn greet(name):
+    set msg = str.concat("Hello, ", name)
+    set msg2 = str.concat(msg, "!")
+    return msg2
+
+print(greet("Akik"))
+print(greet("Omnikarai"))
+
+# --- numeric string processing ---
+set price_str = "1000"
+set price = int(price_str)
+set tax = price * 15 / 100
+print(price)
+print(tax)
+
+return 0

@@ -1,0 +1,13 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 15 — Assert + error cases
+#  Expected:
+#    ok
+#    done
+# ═══════════════════════════════════════════════════════════
+
+set x = 10
+assert(x == 10, "x should be 10")
+print("ok")
+
+assert(1 == 1, "math is broken")
+print("done")

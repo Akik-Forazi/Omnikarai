@@ -1,0 +1,11 @@
+[metadata]
+name        = "opi"
+version     = "0.1.0"
+description = "A short description"
+author      = "Your Name"
+license     = "MIT"
+homepage    = ""
+repository  = ""
+
+[dependencies]
+# math = ">=1.0"

@@ -1,0 +1,18 @@
+use time
+fn dotprod(n):
+    set s = 0
+    set i = 0
+    while i < n:
+        set s = s + i * (n - i)
+        set i = i + 1
+    return s
+
+set t0 = time.now()
+set reps = 0
+set result = 0
+while reps < 100000:
+    set result = dotprod(1024)
+    set reps = reps + 1
+set ms = time.ms(t0)
+print(result)
+print(ms)

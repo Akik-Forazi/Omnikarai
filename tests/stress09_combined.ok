@@ -1,0 +1,161 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 09 — Everything Combined (Master Test)
+#  Tests: functions calling modules calling lists,
+#         recursion inside loops, match inside functions,
+#         variables surviving across many scopes,
+#         the compiler's ability to handle a large program
+#  This is the closest thing to a real program in Omnikarai.
+#  Expected: all values correct, no crash, exit 0
+# ═══════════════════════════════════════════════════════════
+
+use math
+use list
+use str
+use time
+
+# === Helper functions ===
+
+fn abs2(x):
+    if x < 0:
+        return 0 - x
+    return x
+
+fn clamp2(v, lo, hi):
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+fn is_even(n):
+    return n % 2 == 0
+
+fn factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fn gcd(a, b):
+    while b != 0:
+        set t = b
+        set b = a % b
+        set a = t
+    return a
+
+fn is_prime(n):
+    if n < 2:
+        return 0
+    set i = 2
+    while i * i <= n:
+        if n % i == 0:
+            return 0
+        set i = i + 1
+    return 1
+
+fn collatz_len(n):
+    set steps = 0
+    while n != 1:
+        if n % 2 == 0:
+            set n = n / 2
+        else:
+            set n = n * 3 + 1
+        set steps = steps + 1
+    return steps
+
+fn sum_list(lst):
+    set total = 0
+    set i = 0
+    while i < list.len(lst):
+        set total = total + list.get(lst, i)
+        set i = i + 1
+    return total
+
+fn max_in_list(lst):
+    set best = list.get(lst, 0)
+    set i = 1
+    while i < list.len(lst):
+        set v = list.get(lst, i)
+        if v > best:
+            set best = v
+        set i = i + 1
+    return best
+
+# === Section 1: Math verification ===
+print(factorial(10))
+print(fib(15))
+print(gcd(252, 105))
+print(is_prime(97))
+print(collatz_len(27))
+
+# === Section 2: List operations ===
+set primes = list.new()
+set n = 2
+while n <= 30:
+    if is_prime(n) == 1:
+        list.push(primes, n)
+    set n = n + 1
+print(list.len(primes))
+print(list.get(primes, 0))
+print(list.get(primes, list.len(primes) - 1))
+print(sum_list(primes))
+print(max_in_list(primes))
+
+# === Section 3: Math module ===
+print(math.sqrt(256))
+print(math.pow(3, 4))
+print(math.gcd(120, 45))
+print(math.clamp(200, 0, 100))
+print(math.abs(0 - 77))
+
+# === Section 4: Loops and control flow ===
+set total = 0
+for i in range(10):
+    set total = total + i
+print(total)
+
+set zigzag = 0
+set k = 1
+while k <= 10:
+    if k % 2 == 0:
+        set zigzag = zigzag + k
+    else:
+        set zigzag = zigzag - k
+    set k = k + 1
+print(zigzag)
+
+# === Section 5: Match ===
+set result = 0
+set test_val = 3
+match test_val:
+    case 1:
+        set result = 10
+    case 2:
+        set result = 20
+    case 3:
+        set result = 30
+    case _:
+        set result = 99
+print(result)
+
+# === Section 6: String operations ===
+set name = "Omnikarai"
+set greeting = str.concat("Hello, ", name)
+print(greeting)
+print(str.len(greeting))
+print(str.slice(name, 0, 4))
+print(str.eq(name, "Omnikarai"))
+print(str.eq(name, "other"))
+
+# === Section 7: assert (should not crash) ===
+assert(1 == 1, "math broken")
+assert(factorial(5) == 120, "factorial broken")
+assert(fib(10) == 55, "fib broken")
+assert(is_prime(97) == 1, "prime broken")
+
+print(1)
+return 0

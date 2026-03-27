@@ -1,0 +1,32 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 03 — Control flow: if / elif / else
+#  Expected:
+#    A
+#    B
+#    C
+#    F
+#    pass
+#    fail
+# ═══════════════════════════════════════════════════════════
+
+fn grade(score):
+    if score >= 90:
+        print("A")
+    elif score >= 80:
+        print("B")
+    elif score >= 70:
+        print("C")
+    else:
+        print("F")
+
+grade(95)
+grade(85)
+grade(72)
+grade(50)
+
+set x = 15
+if x > 10 and x < 20:
+    print("pass")
+
+if x < 5 or x > 10:
+    print("fail")

@@ -21,6 +21,10 @@ struct Parser {
     char** errors;
     int error_count;
 
+    // Indent depth tracker: incremented on TOKEN_INDENT, decremented on TOKEN_DEDENT.
+    // parse_block_statement uses this to know when its own DEDENT was consumed.
+    int indent_depth;
+
     // Pratt parser function tables
     prefix_parse_fn prefix_parse_fns[256]; // Assuming max 256 token types
     infix_parse_fn infix_parse_fns[256];

@@ -1,0 +1,10 @@
+use time
+
+set t = time.now()
+set ms = time.ms(t)
+set us = time.us(t)
+set ns = time.ns(t)
+
+print(ms)
+print(us)
+print(ns)

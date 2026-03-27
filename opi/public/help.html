@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Help & Docs — OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="opi.css">
+<style>
+.toc-link{display:block;padding:.28rem 0;color:var(--muted);transition:color var(--t);text-decoration:none}
+.toc-link:hover{color:var(--al);text-decoration:none}
+.toc-link.active{color:var(--al)}
+@media(max-width:860px){.docs-wrap{grid-template-columns:1fr!important}#toc{display:none!important}}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="docs-wrap page" style="display:grid;grid-template-columns:200px 1fr;gap:2.5rem;align-items:start">
+  <nav id="toc" style="position:sticky;top:calc(var(--nav-h) + 1rem);font-size:.78rem">
+    <div style="font-family:var(--mono);font-size:.63rem;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);margin-bottom:.6rem">CLI Commands</div>
+    <a href="#install" class="toc-link">install</a>
+    <a href="#uninstall" class="toc-link">uninstall</a>
+    <a href="#list" class="toc-link">list</a>
+    <a href="#info" class="toc-link">info</a>
+    <a href="#search" class="toc-link">search</a>
+    <a href="#publish" class="toc-link">publish</a>
+    <a href="#update" class="toc-link">update</a>
+    <a href="#init" class="toc-link">init</a>
+    <div style="font-family:var(--mono);font-size:.63rem;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);margin:.9rem 0 .6rem">Reference</div>
+    <a href="#toml" class="toc-link">omnikarai.toml</a>
+    <a href="#tokens" class="toc-link">API tokens</a>
+    <a href="#api" class="toc-link">REST API</a>
+    <a href="#terms" class="toc-link">Terms</a>
+  </nav>
+
+  <div class="prose" style="min-width:0">
+    <h1 style="border-top:none;margin-top:0">OPI Documentation</h1>
+    <p>Complete reference for <strong>omnip</strong> and the OPI REST API.</p>
+
+    <h2 id="install">install</h2>
+    <p>Install a package from OPI or locally.</p>
+    <pre><code>omnip install math_extra      # from OPI registry
+omnip install .               # local directory
+omnip install math_extra@1.0  # specific version</code></pre>
+    <p>Packages install to <code>%USERPROFILE%\.omnikarai\modules\&lt;name&gt;\</code>.</p>
+
+    <h2 id="uninstall">uninstall</h2>
+    <pre><code>omnip uninstall math_extra</code></pre>
+
+    <h2 id="list">list</h2>
+    <pre><code>omnip list</code></pre>
+
+    <h2 id="info">info</h2>
+    <pre><code>omnip info math_extra</code></pre>
+
+    <h2 id="search">search</h2>
+    <pre><code>omnip search math
+omnip search "string manipulation"</code></pre>
+
+    <h2 id="publish">publish</h2>
+    <p>Requires an <a href="#tokens">API token</a> set as <code>OPI_TOKEN</code>.</p>
+    <pre><code>set OPI_TOKEN=opi_your_token_here
+omnip publish .</code></pre>
+
+    <h2 id="update">update</h2>
+    <pre><code>omnip update              # update all packages
+omnip update math_extra   # update one</code></pre>
+
+    <h2 id="init">init</h2>
+    <p>Creates <code>omnikarai.toml</code> in the current directory.</p>
+    <pre><code>omnip init</code></pre>
+
+    <h2 id="toml">omnikarai.toml</h2>
+    <pre><code>[metadata]
+name        = "my_package"
+version     = "1.0.0"
+description = "Does something useful"
+author      = "Your Name"
+license     = "MIT"
+homepage    = "https://github.com/you/my_package"
+keywords    = ["util", "math"]
+
+[dependencies]
+math_extra = ">=1.0"</code></pre>
+
+    <h2 id="tokens">API Tokens</h2>
+    <p>Generate tokens in <a href="dashboard.html">Dashboard → API Tokens</a>. Pass as env var or header:</p>
+    <pre><code>set OPI_TOKEN=opi_your_token_here   # Windows
+export OPI_TOKEN=opi_your_token     # Linux/Mac
+
+# Header:
+Authorization: Bearer opi_your_token_here</code></pre>
+
+    <h2 id="api">REST API</h2>
+    <p>Base URL: <code>https://opi-nine.vercel.app</code></p>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td><code>GET</code></td><td><code>/api/packages</code></td><td>List / search packages</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/packages?q=math</code></td><td>Search by keyword</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/packages/:name</code></td><td>Package info + versions</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/packages</code></td><td>Publish package (auth)</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/packages/:name</code></td><td>Delete (owner only)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/stats</code></td><td>Registry stats</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/register</code></td><td>Create account</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Sign in → JWT</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current user</td></tr>
+      <tr><td><code>GET/POST/DELETE</code></td><td><code>/api/user/tokens</code></td><td>Manage API tokens</td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/user/profile</code></td><td>Update profile</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/user/:username</code></td><td>Public profile</td></tr>
+    </table>
+
+    <h2 id="terms">Terms of Service</h2>
+    <ul>
+      <li>Don't publish malicious, illegal, or harmful packages.</li>
+      <li>Don't impersonate other users or projects.</li>
+      <li>Package names are first-come first-served.</li>
+      <li>Yanked versions stay indexed but are flagged — not deleted.</li>
+      <li>We reserve the right to remove packages that violate these terms.</li>
+      <li>OPI is provided free of charge, as-is, without warranty.</li>
+    </ul>
+  </div>
+</div>
+<footer id="footer" class="footer"></footer>
+<script src="opi.js"></script>
+<script>
+window.addEventListener('scroll',()=>{
+  let cur='';
+  qsa('h2[id]').forEach(h=>{if(h.getBoundingClientRect().top<130)cur=h.id});
+  qsa('.toc-link').forEach(l=>{l.classList.toggle('active',l.getAttribute('href')==='#'+cur)});
+},{passive:true});
+</script>
+</body>
+</html>

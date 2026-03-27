@@ -1,0 +1,15 @@
+use time
+fn fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+set t0 = time.now()
+set reps = 0
+set result = 0
+while reps < 5:
+    set result = fib(40)
+    set reps = reps + 1
+set ms = time.ms(t0)
+print(result)
+print(ms)

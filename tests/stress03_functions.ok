@@ -1,0 +1,122 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 03 — Functions Extremes
+#  Tests: many functions in one file, mutual recursion style,
+#         functions calling functions calling functions,
+#         functions with 1/2/3/4 params, return in every branch
+#  Expected: all correct values, no crash
+# ═══════════════════════════════════════════════════════════
+
+fn double(x):
+    return x * 2
+
+fn triple(x):
+    return x * 3
+
+fn add(a, b):
+    return a + b
+
+fn sub(a, b):
+    return a - b
+
+fn mul(a, b):
+    return a * b
+
+fn square(x):
+    return x * x
+
+fn cube(x):
+    return x * x * x
+
+fn max2(a, b):
+    if a > b:
+        return a
+    return b
+
+fn min2(a, b):
+    if a < b:
+        return a
+    return b
+
+fn clamp(v, lo, hi):
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+fn abs_val(x):
+    if x < 0:
+        return 0 - x
+    return x
+
+fn is_even(n):
+    if n % 2 == 0:
+        return 1
+    return 0
+
+fn is_positive(n):
+    if n > 0:
+        return 1
+    return 0
+
+fn sign(n):
+    if n > 0:
+        return 1
+    if n < 0:
+        return 0 - 1
+    return 0
+
+fn factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fn sum_to(n):
+    if n <= 0:
+        return 0
+    return n + sum_to(n - 1)
+
+fn power(base, exp):
+    if exp == 0:
+        return 1
+    return base * power(base, exp - 1)
+
+# --- basic calls ---
+print(double(7))
+print(triple(7))
+print(add(3, 4))
+print(sub(10, 3))
+print(mul(6, 7))
+
+# --- chained calls ---
+print(add(double(3), triple(2)))
+print(square(add(2, 3)))
+print(cube(3))
+
+# --- logic functions ---
+print(max2(10, 20))
+print(min2(10, 20))
+print(clamp(150, 0, 100))
+print(clamp(0 - 5, 0, 100))
+print(abs_val(0 - 42))
+print(is_even(4))
+print(is_even(7))
+print(is_positive(5))
+print(is_positive(0 - 1))
+print(sign(100))
+print(sign(0 - 1))
+print(sign(0))
+
+# --- recursion ---
+print(factorial(5))
+print(factorial(10))
+print(fib(10))
+print(sum_to(10))
+print(power(2, 8))
+
+return 0

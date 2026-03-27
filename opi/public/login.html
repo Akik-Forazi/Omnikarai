@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in — OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="opi.css">
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:grid;grid-template-columns:1fr 1fr;background:#01010a}
+
+/* ── LEFT VISUAL PANEL ── */
+.auth-visual{
+  position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#06061e 0%,#0a0a28 100%);
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
+  padding:clamp(2.5rem,5vw,4.5rem);
+}
+.av-bg{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 70% at 20% 20%,rgba(139,107,255,.28) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%,rgba(90,180,255,.18) 0%,transparent 55%),
+    radial-gradient(ellipse 40% 60% at 60% 10%,rgba(255,107,138,.10) 0%,transparent 50%);
+  animation:av-aurora 16s ease-in-out infinite alternate;
+}
+@keyframes av-aurora{
+  0%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(2%,1.5%) scale(1.02)}
+  100%{transform:translate(-1%,-1%) scale(1.01)}
+}
+.av-orb{position:absolute;border-radius:50%;filter:blur(42px);animation:orb-float 8s ease-in-out infinite}
+.av-orb-1{width:300px;height:300px;background:rgba(139,107,255,.20);top:-80px;right:-80px;animation-delay:0s}
+.av-orb-2{width:200px;height:200px;background:rgba(90,180,255,.16);bottom:28%;left:8%;animation-delay:-3s}
+.av-orb-3{width:140px;height:140px;background:rgba(255,107,138,.12);top:38%;right:12%;animation-delay:-5.5s}
+@keyframes orb-float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-22px) scale(1.06)}}
+.av-grid{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(139,107,255,.055) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(139,107,255,.055) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse 100% 100% at 50% 50%,black 30%,transparent 100%);
+}
+.av-scan{
+  position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(transparent 0,transparent 3px,rgba(0,0,0,.09) 3px,rgba(0,0,0,.09) 4px);
+}
+/* terminal widget */
+.av-terminal{
+  position:relative;z-index:2;width:100%;max-width:460px;
+  background:rgba(1,1,14,.85);border:1px solid rgba(139,107,255,.25);
+  border-radius:14px;overflow:hidden;margin-bottom:2.5rem;
+  box-shadow:0 28px 80px rgba(0,0,0,.65),0 0 0 1px rgba(139,107,255,.08),0 0 60px rgba(139,107,255,.06);
+}
+.av-term-bar{
+  display:flex;align-items:center;gap:6px;padding:11px 15px;
+  background:rgba(139,107,255,.05);border-bottom:1px solid rgba(139,107,255,.12);
+}
+.av-dot{width:11px;height:11px;border-radius:50%}
+.av-dot:nth-child(1){background:#ff5f57}
+.av-dot:nth-child(2){background:#febc2e}
+.av-dot:nth-child(3){background:#28c840}
+.av-term-title{margin-left:8px;font-size:.66rem;color:rgba(139,107,255,.45);font-family:var(--mono)}
+.av-term-body{padding:1.2rem 1.4rem;font-family:var(--mono);font-size:.8rem;line-height:1.95}
+.t-dim{color:#2e2e60}.t-acc{color:#b89fff}.t-green{color:#4df0c8}.t-blue{color:#5ab4ff}
+.t-prompt{color:#8b6bff}.t-warn{color:#ffd166}
+.av-cursor{
+  display:inline-block;width:8px;height:1em;background:#b89fff;
+  vertical-align:text-bottom;border-radius:1px;
+  animation:blink 1s step-end infinite;
+}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+/* brand */
+.av-brand{position:relative;z-index:2}
+.av-brand-logo{display:flex;align-items:center;gap:.7rem;margin-bottom:.85rem}
+.av-brand-icon{
+  width:40px;height:40px;border-radius:11px;flex-shrink:0;
+  background:linear-gradient(135deg,#8b6bff,#5b35e6);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 22px rgba(139,107,255,.5);
+}
+.av-brand-icon svg{width:20px;height:20px;color:#fff}
+.av-brand-name{font-family:var(--mono);font-size:1.05rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.av-brand h2{font-size:clamp(1.15rem,2.5vw,1.55rem);font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem;line-height:1.25}
+.av-brand p{font-size:.83rem;color:#7878b0;line-height:1.65;max-width:320px}
+.av-stats{display:flex;gap:2.25rem;margin-top:1.35rem}
+.av-stat .n{font-family:var(--mono);font-size:1.25rem;font-weight:700;background:linear-gradient(135deg,#fff,#d4bfff,#5ab4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.av-stat .l{font-size:.64rem;color:#505080;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
+
+/* ── RIGHT FORM PANEL ── */
+.auth-form-panel{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:clamp(2rem,4vw,3.5rem);overflow-y:auto;background:#01010a;position:relative;
+}
+.auth-form-panel::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:1px;
+  background:linear-gradient(to bottom,transparent,rgba(139,107,255,.32) 30%,rgba(90,180,255,.22) 70%,transparent);
+}
+.auth-box{width:100%;max-width:520px}
+
+/* header */
+.auth-hdr{margin-bottom:2.25rem;text-align:center}
+.auth-hdr-eyebrow{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:rgba(139,107,255,.1);border:1px solid rgba(139,107,255,.25);
+  border-radius:999px;padding:.28rem 1rem;
+  font-size:.7rem;font-family:var(--mono);letter-spacing:.08em;color:#b89fff;
+  margin-bottom:1.1rem;
+}
+.auth-hdr-dot{width:6px;height:6px;border-radius:50%;background:#4df0c8;box-shadow:0 0 7px #4df0c8;animation:dot-pulse 2s ease-in-out infinite}
+@keyframes dot-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.auth-hdr h1{
+  font-size:clamp(1.7rem,3.5vw,2.4rem);font-weight:900;
+  letter-spacing:-.04em;line-height:1.08;margin-bottom:.5rem;
+}
+.auth-hdr p{font-size:.86rem;color:#7878b0;line-height:1.5}
+
+/* card */
+.auth-card{
+  background:linear-gradient(145deg,rgba(139,107,255,.055) 0%,rgba(8,8,24,.94) 100%);
+  border:1px solid rgba(139,107,255,.2);border-radius:20px;
+  padding:2.25rem 2rem;
+  box-shadow:0 10px 56px rgba(0,0,0,.55),0 0 0 1px rgba(139,107,255,.07),inset 0 1px 0 rgba(255,255,255,.035);
+  position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s;
+}
+.auth-card::before{
+  content:'';position:absolute;top:0;left:10%;right:10%;height:1px;
+  background:linear-gradient(90deg,transparent,#8b6bff,#5ab4ff,transparent);
+  opacity:.7;
+}
+.auth-card.focused{
+  border-color:rgba(139,107,255,.38);
+  box-shadow:0 10px 56px rgba(0,0,0,.55),0 0 0 1px rgba(139,107,255,.14),0 0 48px rgba(139,107,255,.07);
+}
+
+/* form groups */
+.fg{margin-bottom:1.25rem}
+.fg label{
+  display:flex;align-items:center;gap:.45rem;
+  font-size:.74rem;font-weight:600;font-family:var(--mono);
+  letter-spacing:.06em;color:#7878b0;margin-bottom:.5rem;text-transform:uppercase;
+}
+.fg label svg{width:12px;height:12px;flex-shrink:0}
+.input-wrap{position:relative}
+.fg input{
+  width:100%;background:rgba(139,107,255,.045);
+  border:1px solid rgba(139,107,255,.22);border-radius:10px;
+  padding:.8rem 1.1rem;color:#f0f0ff;font-size:.93rem;
+  font-family:var(--sans);outline:none;
+  transition:border-color .18s,background .18s,box-shadow .18s;
+}
+.fg input:focus{
+  border-color:#8b6bff;background:rgba(139,107,255,.09);
+  box-shadow:0 0 0 3px rgba(139,107,255,.15),0 0 22px rgba(139,107,255,.08);
+}
+.fg input::placeholder{color:#2e2e60}
+.pw-toggle{
+  position:absolute;right:.9rem;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:#505080;cursor:pointer;
+  padding:.2rem;transition:color .15s;display:flex;align-items:center;
+}
+.pw-toggle:hover{color:#b89fff}
+
+/* submit */
+.btn-auth{
+  width:100%;padding:.88rem;border-radius:11px;
+  background:linear-gradient(135deg,#9678ff 0%,#6b45f0 45%,#4020c0 100%);
+  color:#fff;font-size:.95rem;font-weight:700;font-family:var(--sans);
+  border:none;cursor:pointer;position:relative;overflow:hidden;
+  box-shadow:0 4px 26px rgba(139,107,255,.42),inset 0 1px 0 rgba(255,255,255,.16);
+  transition:transform .18s var(--ease),box-shadow .18s;
+  display:flex;align-items:center;justify-content:center;gap:.55rem;
+  margin-top:1.5rem;letter-spacing:.01em;
+}
+.btn-auth::before{content:'';position:absolute;top:0;left:-100%;width:70%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);transform:skewX(-20deg);transition:left .55s}
+.btn-auth:hover::before{left:130%}
+.btn-auth:hover{transform:translateY(-2px);box-shadow:0 12px 44px rgba(139,107,255,.58)}
+.btn-auth:active{transform:scale(.97)}
+.btn-auth:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* footer */
+.auth-footer{text-align:center;color:#505080;font-size:.84rem;margin-top:1.4rem}
+.auth-footer a{color:#b89fff;font-weight:600;transition:color .15s}
+.auth-footer a:hover{color:#d4bfff;text-decoration:none}
+
+/* responsive */
+@media(max-width:720px){
+  html,body{overflow:auto}
+  body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .auth-visual{min-height:230px;padding:1.75rem}
+  .av-terminal{display:none}
+  .av-brand h2{font-size:1rem}
+  .av-brand p{display:none}
+  .auth-form-panel::before{display:none}
+  .auth-form-panel{padding:2rem 1.5rem}
+  .auth-box{max-width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- LEFT PANEL -->
+<div class="auth-visual">
+  <div class="av-bg"></div>
+  <div class="av-grid"></div>
+  <div class="av-scan"></div>
+  <div class="av-orb av-orb-1"></div>
+  <div class="av-orb av-orb-2"></div>
+  <div class="av-orb av-orb-3"></div>
+
+  <div class="av-terminal">
+    <div class="av-term-bar">
+      <div class="av-dot"></div><div class="av-dot"></div><div class="av-dot"></div>
+      <span class="av-term-title">omnip — terminal</span>
+    </div>
+    <div class="av-term-body">
+      <div><span class="t-dim">~</span> <span class="t-prompt">$</span> <span style="color:#f0f0ff">omnip install math_extra</span></div>
+      <div><span class="t-acc">→</span> Fetching <span class="t-blue">math_extra</span> from OPI<span class="t-dim">…</span></div>
+      <div><span class="t-green">✓</span> Installed <span class="t-blue">math_extra</span> <span class="t-dim">v1.0.0</span></div>
+      <div style="margin-top:.5rem"><span class="t-dim">~</span> <span class="t-prompt">$</span> <span style="color:#f0f0ff">omnip publish .</span></div>
+      <div><span class="t-acc">→</span> Publishing <span class="t-blue">my_lib</span> <span class="t-dim">v2.1.0</span><span class="t-dim">…</span></div>
+      <div><span class="t-green">✓</span> Live at <span class="t-warn">opi-nine.vercel.app</span></div>
+      <div style="margin-top:.5rem"><span class="t-dim">~</span> <span class="t-prompt">$</span> <span class="av-cursor"></span></div>
+    </div>
+  </div>
+
+  <div class="av-brand">
+    <div class="av-brand-logo">
+      <div class="av-brand-icon">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M3 8l7-5 7 5v9H3V8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><rect x="7" y="12" width="6" height="5" rx=".5" stroke="currentColor" stroke-width="1.4"/></svg>
+      </div>
+      <span class="av-brand-name">OPI</span>
+    </div>
+    <h2>The official Omnikarai<br>package registry.</h2>
+    <p>Publish, discover and install native packages at x86-64 speed with zero runtime overhead.</p>
+    <div class="av-stats">
+      <div class="av-stat"><div class="n" id="av-pkgs">—</div><div class="l">Packages</div></div>
+      <div class="av-stat"><div class="n" id="av-dl">—</div><div class="l">Downloads</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="auth-form-panel">
+  <div class="auth-box">
+    <div class="auth-hdr">
+      <div class="auth-hdr-eyebrow"><span class="auth-hdr-dot"></span>Secure sign-in</div>
+      <h1>Welcome<br><span style="background:linear-gradient(135deg,#d4bfff,#b89fff,#5ab4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">back.</span></h1>
+      <p>Sign in to access your packages, dashboard and API tokens.</p>
+    </div>
+
+    <div class="auth-card" id="auth-card">
+      <div id="alert"></div>
+      <form id="login-form" autocomplete="on">
+
+        <div class="fg">
+          <label>
+            <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 12c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Username or Email
+          </label>
+          <input id="username" type="text" autocomplete="username" placeholder="akikfaraji or akik@example.com" required spellcheck="false" autocapitalize="none">
+        </div>
+
+        <div class="fg" style="margin-bottom:0">
+          <label>
+            <svg viewBox="0 0 14 14" fill="none"><rect x="2" y="6" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Password
+          </label>
+          <div class="input-wrap">
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••••••" required>
+            <button type="button" class="pw-toggle" id="pwt" tabindex="-1" aria-label="Toggle password visibility">
+              <svg id="eye-icon" width="17" height="17" viewBox="0 0 16 16" fill="none">
+                <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn-auth" type="submit" id="submit-btn">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+            <path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sign in to OPI
+        </button>
+      </form>
+    </div>
+
+    <p class="auth-footer">
+      Don't have an account? <a href="register.html">Create one free →</a>
+    </p>
+  </div>
+</div>
+
+<script src="opi.js"></script>
+<script>
+async function pageInit(){
+  if(Auth.isLoggedIn()){location.href='dashboard.html';return}
+
+  // live stats for left panel
+  api('/stats').then(({ok,data})=>{
+    if(!ok) return;
+    const f=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':String(n||0);
+    const sp=document.getElementById('av-pkgs'),sd=document.getElementById('av-dl');
+    if(sp)sp.textContent=f(data.total_packages||0);
+    if(sd)sd.textContent=f(data.total_downloads||0);
+  });
+
+  // password show/hide
+  qs('#pwt').onclick=()=>{
+    const p=qs('#password');
+    const show=p.type==='password';
+    p.type=show?'text':'password';
+    qs('#eye-icon').innerHTML=show
+      ?'<path d="M2 2l12 12M6.5 6.7A2 2 0 0 0 9.3 9.5M4.2 4.4C2.7 5.5 1.5 7 1.5 7S4 11.5 8 11.5c1 0 2-.3 2.8-.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 4.5c2.8.5 4.5 2.5 4.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>'
+      :'<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/>';
+  };
+
+  // card glow on focus
+  qs('#login-form').addEventListener('focusin',()=>qs('#auth-card').classList.add('focused'));
+  qs('#login-form').addEventListener('focusout',()=>{
+    if(!qs('#login-form input:focus'))qs('#auth-card').classList.remove('focused');
+  });
+
+  function setLoading(btn,loading){
+    btn.disabled=loading;
+    btn.innerHTML=loading
+      ?`<svg width="15" height="15" viewBox="0 0 14 14" style="animation:spin .65s linear infinite"><circle cx="7" cy="7" r="5" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/><path d="M7 2a5 5 0 0 1 5 5" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg> Signing in…`
+      :`<svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg> Sign in to OPI`;
+  }
+
+  function showError(msg){
+    qs('#alert').innerHTML=`<div class="alert alert-error" style="margin-bottom:1rem;font-size:.83rem">${esc(msg)}</div>`;
+    qs('#auth-card').style.borderColor='rgba(255,107,138,.4)';
+    setTimeout(()=>{ qs('#auth-card').style.borderColor=''; },1400);
+  }
+
+  qs('#login-form').onsubmit=async e=>{
+    e.preventDefault();
+    const btn=qs('#submit-btn');
+    const username=qs('#username').value.trim();
+    const password=qs('#password').value;
+
+    if(!username){showError('Please enter your username or email.');qs('#username').focus();return;}
+    if(!password){showError('Please enter your password.');qs('#password').focus();return;}
+
+    setLoading(btn,true);
+    qs('#alert').innerHTML='';
+
+    const {ok,status,data}=await api('/auth/login',{
+      method:'POST',
+      body:JSON.stringify({username,password})
+    });
+
+    if(ok && data.token){
+      Auth.setToken(data.token);
+      Auth.setUser(data.user);
+      btn.innerHTML=`<svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Signed in`;
+      setTimeout(()=>{ location.href='dashboard.html'; },380);
+    } else {
+      const msg=data?.error
+        || (status===401?'Incorrect username or password.'
+          :status===400?'Please fill in all fields.'
+          :status===0?'Cannot reach the server. Check your connection.'
+          :'Something went wrong. Please try again.');
+      showError(msg);
+      setLoading(btn,false);
+    }
+  };
+}
+</script>
+</body>
+</html>

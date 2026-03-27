@@ -1,83 +1,298 @@
-# Omnikarai Compiler Development Log
+# Omnikarai Compiler — Development Log & Internals
 
-This document details the development journey of the Omnikarai compiler, covering key design decisions, implementation challenges, and ongoing maintenance considerations. It's written from the perspective of a human developer navigating the complexities of building a language toolchain.
+> This document covers the real engineering history of `omnicc` — every major decision, every architecture change, and what the code actually does today.
 
-## 1. Project Conception & Setup
+---
 
-The Omnikarai project began with the goal of creating a simple, indentation-sensitive language with a focus on clear syntax. Initial setup involved:
-- **Tooling:** Standard C development environment (GCC, Makefiles for build automation, a text editor/IDE like VS Code).
-- **Core Components:** Recognizing the need for a Lexer (tokenization) and a Parser (syntax tree construction) as fundamental steps.
-- **Language Design:** Early drafts of the language specification, focusing on Python-like indentation and basic control flow.
+## 1. Project Origin
 
-## 2. Lexer Development (`lexer.c`, `lexer.h`)
+**Creator:** Akik Faraji, Fraziym Tech & AI, Dhaka, Bangladesh  
+**Goal:** Build a programming language from scratch — readable like Python, compiled to native x86-64, zero external dependencies.
 
-The lexer's primary role is to convert the source code into a stream of tokens. This phase presented several interesting challenges:
+The language is called **Omnikarai** (`.ok` files). The compiler is `omnicc`.
 
-### 2.1. Basic Tokenization
-Implementing functions like `read_char`, `peek_char`, `read_identifier`, `read_number`, and `read_string` was straightforward. The `new_token` helper simplified token creation. Keyword lookup (`lookup_ident`) was handled efficiently with a series of `strcmp` calls.
+---
 
-### 2.2. Whitespace and Comments
-- **Inline Whitespace:** `skip_inline_whitespace` handles spaces and tabs within a line.
-- **Single-line Comments:** Comments starting with `#` were designed to be skipped until the end of the line.
-- **Multiline Comments:** A decision was made to use `#| ... |#` for multiline comments. This required special handling to ensure correct skipping, including nested comment awareness (though the current implementation is simple and might not support arbitrary nesting).
+## 2. Architecture Evolution
 
-### 2.3. Indentation-Sensitive Parsing (The Pythonic Challenge)
-This was arguably the most complex part of the lexer. To support indentation-based blocks, the lexer needed to:
-- **Track Indentation Levels:** A stack (`indent_stack`) was implemented to keep track of the current and previous indentation levels.
-- **Emit `INDENT` and `DEDENT` Tokens:** The `handle_indentation` function was crucial. It runs at the beginning of each line (`at_bol`) to calculate the new indentation, compare it to the current level, and emit `TOKEN_INDENT` or `TOKEN_DEDENT` tokens as necessary.
-- **Error Handling for Inconsistent Indent:** Detecting and reporting `IndentationError` for inconsistent dedents was critical for a robust lexer.
-- **Pending Tokens:** The `pending_tokens` array was introduced to allow `handle_indentation` to push `INDENT`/`DEDENT` tokens *before* the actual code tokens on a line, ensuring they are processed in the correct order by the parser.
+### Phase 1 — Tree-walk Interpreter
+The original codebase had:
+- `src/interpreter.c` — tree-walking interpreter using `Object*` boxing
+- `src/compiler.c` — stub with LLVM dependency stubs
+- `src/jit.c` — LLVM MCJIT stubs
+- `src/omni_runtime.c` — `OmniValue` boxing runtime
 
-### 2.4. Debugging the Lexer
-Extensive `printf` debugging statements (which were later removed for cleaner production code) were used throughout the lexer functions to trace `ch` (current character), `position`, `readPosition`, `line_num`, `at_bol`, and the emitted tokens. The `handle_indentation` function, in particular, required meticulous tracing of `indent_stack` and `pending_count` to ensure correct `INDENT`/`DEDENT` emission.
+**Problems found and removed:**
+- LLVM dependency made the compiler unusable without a full LLVM install
+- `OmniValue` boxing added unnecessary overhead for a statically-dispatchable type system
+- Tree-walking is slow and complex
+- All LLVM/interpreter/JIT/runtime files were deleted
 
-## 3. Parser Development (`parser.c`, `parser.h`)
+### Phase 2 — Native x86-64 Codegen (current)
+Replaced everything with a single `src/codegen.c` that:
+- Emits raw x86-64 bytes directly into a `CodeBuf`
+- Uses `VirtualAlloc(PAGE_EXECUTE_READWRITE)` for in-memory execution
+- Follows Windows x64 ABI exactly (shadow space, 16-byte alignment, RBP frame)
+- Uses `WriteFile` (Win32 kernel) for output — no CRT, no SEH issues
 
-The parser takes the token stream from the lexer and builds an Abstract Syntax Tree (AST).
+**New pipeline:**
+```
+.ok source → Lexer → Parser → AST → codegen_compile() → VirtualAlloc → run
+```
 
-### 3.1. Pratt Parser Implementation
-A Pratt parser (also known as a Top-Down Operator Precedence parser) was chosen for its flexibility and ability to handle operator precedence and associativity efficiently.
-- **`prefix_parse_fn` and `infix_parse_fn`:** Two main function types were defined to handle expressions based on whether an operator is a prefix (unary) or infix (binary) operator.
-- **Precedence Table:** The `precedences` array maps token types to their respective precedence levels, which is central to the Pratt parser's operation.
-- **`parse_expression`:** This core function recursively parses expressions, respecting operator precedence.
+---
 
-### 3.2. Statement Parsing
-Various `parse_*_statement` functions were implemented for language constructs like `set`, `if`/`elif`/`else`, `fn` (function definitions), `while`, `for`, `class`, `match`, and `return`.
-- **Block Statements:** `parse_block_statement` handles code blocks, typically following a colon and an `INDENT` token, continuing until a `DEDENT`.
+## 3. Lexer (`src/lexer.c`)
 
-### 3.3. Expression Parsing
-Functions like `parse_identifier`, `parse_integer_literal`, `parse_boolean`, `parse_string_literal`, `parse_grouped_expression`, `parse_call_expression`, and `parse_prefix_expression`/`parse_infix_expression` cover the various types of expressions.
+### 3.1 Key design decisions
 
-### 3.4. The Semicolon Operator (An Interesting Edge Case)
-Initially, `TOKEN_SEMICOLON` was handled as an infix operator, primarily to consume it in the token stream without complex statement-ending logic. The `parse_semicolon_operator` function was a simple pass-through: it accepted the `left` expression and returned it, effectively ignoring the semicolon's presence in the AST for now. This was a pragmatic choice for rapid development.
-- **Type Compatibility:** A minor hurdle was ensuring `parse_semicolon_operator`'s signature matched the `infix_parse_fn` type. Initially, an attempt was made to remove the `Parser* p` parameter (as it was unused in `parse_semicolon_operator` itself), which led to a compiler warning about incompatible function types. The decision was made to reintroduce the `Parser* p` parameter and explicitly cast it to `void` within the function (`(void)p;`) to suppress the "unused parameter" warning, prioritizing type compatibility and avoiding the more intrusive changes that would be required to redefine the `infix_parse_fn` contract.
+**Cached `input_len`:** Original code called `strlen()` inside `read_char()` and `peek_char()` on every character — O(n²) for the entire file. Fixed by caching length in `l->input_len` during `lexer_init()`.
 
-### 3.5. Debugging the Parser
-Debugging the parser often involved:
-- **Token Stream Inspection:** Verifying that the lexer was emitting the correct sequence of tokens.
-- **AST Node Inspection:** After parsing, examining the structure of the generated AST to ensure it accurately represented the source code. This typically involved custom `print_ast` functions (not included in the provided code) or using a debugger to step through the parsing logic.
-- **Error Tracing:** Following the `parser_add_error` calls to understand where parsing failures occurred.
+**INDENT / DEDENT tokens:** The lexer emits synthetic `TOKEN_INDENT` and `TOKEN_DEDENT` tokens to signal block entry/exit, exactly like Python's tokenizer. This is handled by `handle_indentation()` which runs at the start of every new line (`at_bol = 1`).
 
-## 4. Error Handling & Memory Management
+**`pending_tokens` queue:** Because `handle_indentation` may need to emit multiple DEDENT tokens before the actual line token, a small pending queue holds them and drains before the next real token is read.
 
-- **Error Reporting:** A simple error reporting mechanism (`parser_add_error`) stores error messages in a dynamically allocated array.
-- **Memory Allocation:** Extensive use of `malloc`, `realloc`, and `free` for AST nodes, token literals, and parser/lexer structures. Careful attention to freeing memory is crucial to prevent leaks, especially for complex AST structures which require recursive freeing.
+**Block comment `#| ... |#`:** Single-pass scanning, no nesting support yet.
 
-## 5. Build Process (`Makefile`)
+### 3.2 Token types (complete list)
 
-A simple `Makefile` automates the compilation process, linking `lexer.c`, `parser.c`, and `main.c` into the `bin/omnicc` executable. It includes standard GCC flags for warnings (`-Wall -Wextra`) and C99 standard compliance (`-std=c99`).
+```
+TOKEN_EOF, TOKEN_ILLEGAL, TOKEN_IDENT, TOKEN_INT, TOKEN_FLOAT,
+TOKEN_STRING, TOKEN_NL, TOKEN_INDENT, TOKEN_DEDENT,
+TOKEN_ASSIGN, TOKEN_PLUS, TOKEN_MINUS, TOKEN_STAR, TOKEN_SLASH,
+TOKEN_PERCENT, TOKEN_POWER, TOKEN_EQ, TOKEN_NOT_EQ,
+TOKEN_LT, TOKEN_GT, TOKEN_LTE, TOKEN_GTE,
+TOKEN_LPAREN, TOKEN_RPAREN, TOKEN_LBRACE, TOKEN_RBRACE,
+TOKEN_LBRACKET, TOKEN_RBRACKET, TOKEN_COMMA, TOKEN_COLON,
+TOKEN_DOT, TOKEN_SEMICOLON, TOKEN_ARROW,
+TOKEN_SET, TOKEN_FN, TOKEN_CLASS, TOKEN_IF, TOKEN_ELIF, TOKEN_ELSE,
+TOKEN_WHILE, TOKEN_FOR, TOKEN_IN, TOKEN_RETURN, TOKEN_USE, TOKEN_AS,
+TOKEN_TRUE, TOKEN_FALSE, TOKEN_NIL, TOKEN_AND, TOKEN_OR, TOKEN_NOT,
+TOKEN_MATCH, TOKEN_CASE, TOKEN_BREAK, TOKEN_CONTINUE, TOKEN_SELF
+```
 
-## 6. Testing
+---
 
-The `test.ok` files (e.g., `test.ok`, `test_v4.ok`, `test_advanced.ok`, `test_kitchen_sink.ok`) serve as integration tests for the lexer and parser. They contain Omnikarai source code snippets that the compiler should be able to process without syntax errors, and eventually, interpret or compile correctly. Running the `omnicc` executable with these files helps validate the parsing logic.
+## 4. Parser (`src/parser.c`)
 
-## 7. Future Work / Known Limitations
+### 4.1 Pratt parser
 
-- **Full Semantic Analysis:** The current compiler focuses on lexical analysis and syntactic parsing. A future phase would involve semantic analysis (type checking, variable resolution, etc.).
-- **Code Generation/Interpretation:** After semantic analysis, the next step would be to either interpret the AST directly or generate bytecode/machine code.
-- **Improved Error Recovery:** The parser's error recovery is currently basic. More sophisticated error recovery mechanisms would improve the user experience for developers writing Omnikarai code.
-- **AST Node Cleanup:** While some `free` calls are present, a comprehensive AST freeing mechanism is essential to prevent memory leaks in a long-running compiler or interpreter.
-- **Comprehensive Test Suite:** Expanding the test suite with more unit tests for individual parser/lexer functions and a wider range of language features.
-- **Enhanced Multiline Comment Handling:** Ensure `#| ... |#` fully supports arbitrary nesting if that's a language requirement.
+A **Top-Down Operator Precedence (Pratt) parser** is used for expressions. Two function tables:
+- `prefix_parse_fns[]` — one function per token type, called when that token appears in prefix position
+- `infix_parse_fns[]` — one function per token type, called when that token appears in infix (binary) position
 
-This document serves as a living record of the Omnikarai compiler's development, highlighting the engineering decisions and practical considerations involved.
+Precedence levels:
+```c
+PREC_LOWEST
+PREC_EQUALS       // ==  !=
+PREC_LESSGREATER  // >  <  >=  <=
+PREC_SUM          // +  -
+PREC_PRODUCT      // *  /
+PREC_PREFIX       // -x  !x
+PREC_CALL         // fn()
+PREC_INDEX        // arr[i]
+```
+
+> ⚠️ **Known limitation:** `PREC_PRODUCT > PREC_SUM` is defined in the table, but the parser currently evaluates left-to-right for some compound expressions. This is being tracked as a bug. Use parentheses to guarantee order.
+
+### 4.2 Block parsing (`parse_block_statement`)
+
+```
+<keyword> <condition>:
+    INDENT
+    statement...
+    DEDENT
+```
+
+The parser:
+1. Consumes any trailing `TOKEN_NL` after `:`
+2. Expects `TOKEN_INDENT`
+3. Loops parsing statements until `TOKEN_DEDENT` or `TOKEN_EOF`
+4. Leaves `currentToken` on `TOKEN_DEDENT` (consumed by caller)
+
+### 4.3 `parse_if_statement` and elif chaining
+
+`elif` is implemented by recursively calling `parse_if_statement()` and storing the result as `stmt->alternative`. This naturally builds a chain:
+
+```
+IF_STATEMENT
+  condition: score >= 90
+  consequence: [block]
+  alternative: IF_STATEMENT          ← elif
+    condition: score >= 75
+    consequence: [block]
+    alternative: BLOCK_STATEMENT     ← else
+```
+
+### 4.4 Memory: pre-allocated capacity
+
+`parse_program()` pre-allocates capacity=16, grows 2× — fixed the original realloc-per-statement O(n²) heap thrashing.
+
+### 4.5 Supported AST node types
+
+**Statements:** `SET_STATEMENT`, `RETURN_STATEMENT`, `EXPRESSION_STATEMENT`, `BLOCK_STATEMENT`, `FN_DEFINITION`, `CLASS_DEFINITION`, `IF_STATEMENT`, `WHILE_STATEMENT`, `FOR_STATEMENT`, `MATCH_STATEMENT`, `MATCH_CASE_STATEMENT`
+
+**Expressions:** `IDENTIFIER`, `INTEGER_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL`, `NIL_LITERAL`, `ARRAY_LITERAL`, `MAP_LITERAL`, `INFIX_EXPRESSION`, `PREFIX_EXPRESSION`, `CALL_EXPRESSION`, `FN_LITERAL`, `MEMBER_ACCESS_EXPRESSION`, `EMPTY_EXPRESSION`
+
+---
+
+## 5. Code Generator (`src/codegen.c`)
+
+### 5.1 Overview
+
+`codegen.c` emits raw x86-64 bytes into a `CodeBuf` (dynamic byte array). After compilation, the bytes are copied into `VirtualAlloc`'d executable memory and called as a C function pointer.
+
+**Windows x64 ABI rules followed:**
+- Args passed in: RCX, RDX, R8, R9, then stack
+- Caller-saved: RAX, RCX, RDX, R8-R11
+- Callee-saved: RBX, RBP, RDI, RSI, R12-R15
+- 32-byte shadow space before every `call`
+- RSP must be 16-byte aligned before `call`
+- After `push rbp`: RSP is 16n-8, so `sub rsp, N` where `N % 16 == 8`
+
+### 5.2 Stack frame
+
+```asm
+push rbp
+mov rbp, rsp
+sub rsp, N        ; N = (locals + 32) rounded to N%16==8
+                  ; patched after all statements are compiled
+
+; locals at [rbp-8], [rbp-16], [rbp-24], ...
+
+; epilogue:
+mov rsp, rbp
+pop rbp
+ret
+```
+
+`N` is backpatched: a 4-byte placeholder is emitted at prologue, then `patch_u32()` fills it after `cg->stack_size` is known.
+
+### 5.3 Symbol table
+
+FNV-1a hash table (256 buckets, open chaining). Each symbol stores:
+- `name[64]` — variable name
+- `OmniType` — `INT`, `BOOL`, `STR`, `UNKNOWN`
+- `stack_offset` — `[rbp - offset]`
+
+Scopes chain via `parent` pointer. `scope_get()` walks up the chain.
+
+### 5.4 Expression codegen — result always in RAX
+
+All expressions leave their result in `RAX`. Infix expressions use `R10` as scratch:
+
+```asm
+; set r10 = left
+; eval right → rax
+; mov rcx, r10    (rcx = left)
+; xchg rax, rcx  (rax = left, rcx = right)
+; <operation>    (result in rax)
+```
+
+This avoids `push/pop` which would disturb RSP alignment.
+
+### 5.5 Runtime output — WriteFile, not printf
+
+`omni_print_int`, `omni_print_str`, `omni_print_bool` use `WriteFile` (Win32 kernel directly). This is critical — MinGW's `printf` uses SEH-based unwinding internally. When Windows' exception dispatcher walks our JIT stack frame it finds no `.pdata` unwind record and crashes. `WriteFile → kernel32` has none of that.
+
+Functions are marked `__attribute__((noinline))` and stored in a `volatile` table so `-O2` cannot eliminate them.
+
+### 5.6 `return` statement
+
+```asm
+; eval return_value → rax
+mov rsp, rbp   ; unwind locals
+pop rbp
+ret
+```
+
+Sets `cg->returned = 1`. The default epilogue at the end of `codegen_compile()` is skipped if `returned == 1`.
+
+### 5.7 Jump backpatching
+
+Forward jumps (`if`, `while`) emit a placeholder `je`/`jmp` with a 4-byte displacement of 0. After the target is known, `resolve_jump()` fills the correct `int32_t` relative displacement.
+
+### 5.8 String literals
+
+String literals are heap-allocated as stable copies tracked in `cg->string_pool[]`. The address is emitted as `mov rax, imm64`. The code buffer gets `realloc`'d, so embedding string bytes there would be unsafe.
+
+---
+
+## 6. Main Entry Point (`src/main.c`)
+
+```
+omnicc run   <file>  → compile + codegen_run()  → returns int64_t exit code
+omnicc dump  <file>  → compile + codegen_dump() → hex dump to stderr
+omnicc build <file>  → stub (PE writer coming)
+```
+
+`cmd_run()` calls `codegen_run()` which returns `int64_t` — the full 64-bit RAX value. This was changed from `int` to avoid truncation on Windows x64 where upper 32 bits of RAX may differ.
+
+---
+
+## 7. Build
+
+```makefile
+CC      = gcc
+CFLAGS  = -Iinclude -Wall -Wextra -std=c99 -O2
+LDFLAGS = -lkernel32
+TARGET  = bin/omnicc.exe
+SOURCES = src/main.c src/lexer.c src/parser.c src/codegen.c
+```
+
+```bash
+gcc -Iinclude -O2 -o bin/omnicc.exe src/main.c src/lexer.c src/parser.c src/codegen.c -lkernel32
+```
+
+---
+
+## 8. Bug History
+
+| Bug | Root cause | Fix |
+|-----|-----------|-----|
+| Lexer O(n²) | `strlen()` called per character in `read_char` | Cached `l->input_len` |
+| Parser heap thrash | `realloc` every statement in `parse_program` | Pre-alloc 16, grow 2× |
+| Wrong exit code (`63` instead of `67`) | `printf("%d\n", exit_code)` printed the value AND it was also the return value — confused output | Removed the `printf` line |
+| `int` vs `int64_t` return | `codegen_run` returned `int`, truncating 64-bit RAX | Changed return type to `int64_t` |
+| `conflicting types for codegen_run` | Definition in `.c` still said `int` after `.h` was updated | Fixed definition to match `int64_t` |
+| `return` doesn't stop execution | Default epilogue always emitted after statements | Added `cg->returned` flag, skip default epilogue |
+
+---
+
+## 9. Next Milestones
+
+### Milestone 1 — User-defined function calls (next)
+- Codegen for `FN_DEFINITION`: emit the function body, record its code offset
+- Codegen for `CALL_EXPRESSION`: look up function address, set up frame, call it
+- Pass arguments in RCX/RDX/R8/R9 per Windows x64 ABI
+
+### Milestone 2 — Operator precedence fix
+- Parser already has the precedence table correct
+- Investigate why compound expressions evaluate left-to-right in some cases
+- Add test cases to verify `2 + 3 * 4 == 14`
+
+### Milestone 3 — For loop codegen
+- `for i in range(n)` — compile as `while` with an index variable
+- `for item in list` — requires runtime list support first
+
+### Milestone 4 — Match/case codegen
+- Compile as a chain of `cmp + je` instructions
+- Range patterns (`500..599`) need a between-check
+
+### Milestone 5 — Runtime type system
+- Lists, dicts, tuples as heap-allocated tagged structs
+- `len()`, `append()`, indexing `[]`
+
+### Milestone 6 — Class system
+- `class` → vtable-based dispatch
+- `self` → pointer passed as first arg
+- `init` → called on instantiation
+
+### Milestone 7 — Module loader
+- `use math` → find `math.ok` in `~/.omnikarai/modules/`
+- Compile and expose its namespace
+- `omnip install` to download from OPi
+
+### Milestone 8 — PE writer (`omnicc build`)
+- Emit a valid Windows PE32+ `.exe` with the generated x86-64 bytes
+- No runtime dependency

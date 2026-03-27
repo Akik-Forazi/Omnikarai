@@ -1,0 +1,3 @@
+# testmulti — multi-file package test
+fn hello():
+    print("hello from testmulti root")

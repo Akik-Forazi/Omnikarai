@@ -1,0 +1,21 @@
+# math/basic.ok
+fn add(a, b):
+    return a + b
+
+fn sub(a, b):
+    return a - b
+
+fn mul(a, b):
+    return a * b
+
+fn div(a, b):
+    if b == 0:
+        return 0
+    return a / b
+
+fn clamp(x, lo, hi):
+    if x < lo:
+        return lo
+    if x > hi:
+        return hi
+    return x

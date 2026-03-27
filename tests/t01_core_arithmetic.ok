@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 01 — Core: variables, arithmetic, comparisons
+#  Expected output (in order):
+#    10
+#    3
+#    13
+#    7
+#    30
+#    3
+#    1
+#    true
+#    true
+#    true
+#    true
+#    true
+#    true
+# ═══════════════════════════════════════════════════════════
+
+set a = 10
+set b = 3
+
+print(a)
+print(b)
+print(a + b)
+print(a - b)
+print(a * b)
+print(a / b)
+print(a % b)
+
+print(a == 10)
+print(a != b)
+print(b < a)
+print(a > b)
+print(a >= 10)
+print(b <= 3)

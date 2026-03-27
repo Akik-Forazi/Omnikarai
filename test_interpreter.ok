@@ -1,5 +1,0 @@
-
-set add = fn(a, b):
-    return a + b
-
-set result = add(5, 3)

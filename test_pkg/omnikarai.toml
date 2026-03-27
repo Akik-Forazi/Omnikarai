@@ -1,0 +1,10 @@
+[metadata]
+name        = "strutil"
+version     = "1.0.3"
+description = "String utilities for Omnikarai: repeat, pad, count, reverse, starts_with, ends_with"
+author      = "Akik Faraji"
+license     = "MIT"
+homepage    = "https://opi-nine.vercel.app/package/strutil"
+repository  = ""
+
+[dependencies]

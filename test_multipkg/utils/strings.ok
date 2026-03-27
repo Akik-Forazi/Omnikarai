@@ -1,0 +1,24 @@
+# utils/strings.ok
+fn upper(s):
+    set result = ""
+    set i = 0
+    while i < len(s):
+        set c = s[i]
+        if c >= "a" and c <= "z":
+            set result = result + chr(ord(c) - 32)
+        else:
+            set result = result + c
+        set i = i + 1
+    return result
+
+fn lower(s):
+    set result = ""
+    set i = 0
+    while i < len(s):
+        set c = s[i]
+        if c >= "A" and c <= "Z":
+            set result = result + chr(ord(c) + 32)
+        else:
+            set result = result + c
+        set i = i + 1
+    return result

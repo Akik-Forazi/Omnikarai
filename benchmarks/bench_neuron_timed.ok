@@ -1,0 +1,30 @@
+use time
+fn relu(x):
+    if x > 0:
+        return x
+    return 0
+
+fn layer(inputs, neurons):
+    set total = 0
+    set n = 0
+    while n < neurons:
+        set acc = 0
+        set i = 0
+        while i < inputs:
+            set w = (n * inputs + i + 1) % 11
+            set x = (i - inputs / 2) * w
+            set acc = acc + relu(x)
+            set i = i + 1
+        set total = total + acc
+        set n = n + 1
+    return total
+
+set t0 = time.now()
+set reps = 0
+set result = 0
+while reps < 2000:
+    set result = layer(128, 256)
+    set reps = reps + 1
+set ms = time.ms(t0)
+print(result)
+print(ms)

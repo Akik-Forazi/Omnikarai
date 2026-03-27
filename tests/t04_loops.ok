@@ -1,0 +1,41 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 04 — Loops: while, for, break, continue
+#  Expected:
+#    0
+#    1
+#    2
+#    3
+#    4
+#    (break at 5)
+#    1
+#    2
+#    4
+#    5
+#    6
+#    (continue skips 3)
+#    0
+#    1
+#    2
+#    3
+#    4
+# ═══════════════════════════════════════════════════════════
+
+# while + break
+set i = 0
+while i < 10:
+    if i == 5:
+        break
+    print(i)
+    set i = i + 1
+
+# while + continue
+set j = 0
+while j < 6:
+    set j = j + 1
+    if j == 3:
+        continue
+    print(j)
+
+# for range
+for k in range(5):
+    print(k)

@@ -1,0 +1,2 @@
+use strutil
+print(1)

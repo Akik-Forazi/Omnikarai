@@ -1,0 +1,20 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 13 — Sys module
+#  Expected:
+#    Omnikarai v6.0 (x86-64 Windows)
+#    windows-x64
+#    5.0.0
+#    64
+# ═══════════════════════════════════════════════════════════
+
+use sys
+
+set v   = sys.version()
+set p   = sys.platform()
+set ov  = sys.omni_ver()
+set b   = sys.bits()
+
+print(v)
+print(p)
+print(ov)
+print(b)

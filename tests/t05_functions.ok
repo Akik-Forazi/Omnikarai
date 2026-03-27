@@ -1,0 +1,37 @@
+# ═══════════════════════════════════════════════════════════
+#  TEST 05 — Functions: basic, recursive, nested calls
+#  Expected:
+#    15
+#    20
+#    120
+#    25
+#    55
+# ═══════════════════════════════════════════════════════════
+
+fn add(x, y):
+    return x + y
+
+fn multiply(x, y):
+    return x * y
+
+fn factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn square(n):
+    return n * n
+
+fn sum_of_squares(a, b):
+    return square(a) + square(b)
+
+fn fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+print(add(7, 8))
+print(multiply(4, 5))
+print(factorial(5))
+print(sum_of_squares(3, 4))
+print(fib(10))

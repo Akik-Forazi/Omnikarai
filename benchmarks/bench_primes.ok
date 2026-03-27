@@ -1,0 +1,23 @@
+# bench_primes.ok — Primes to 100K  (30 reps)
+fn is_prime(n):
+    if n < 2:
+        return 0
+    set d = 2
+    while d * d <= n:
+        if n % d == 0:
+            return 0
+        set d = d + 1
+    return 1
+
+set reps = 0
+set result = 0
+while reps < 30:
+    set count = 0
+    set n = 2
+    while n <= 100000:
+        if is_prime(n):
+            set count = count + 1
+        set n = n + 1
+    set result = count
+    set reps = reps + 1
+print(result)

@@ -5,7 +5,7 @@
 
 // --- FORWARD DECLARATIONS ---
 struct AST_Statement;
-typedef struct AST_Statement_Block AST_Statement_Block; // Forward declaration
+typedef struct AST_Statement_Block AST_Statement_Block;
 
 // --- NODE TYPES ---
 typedef enum {
@@ -21,40 +21,38 @@ typedef enum {
     FOR_STATEMENT,
     MATCH_STATEMENT,
     MATCH_CASE_STATEMENT,
-    
+    USE_STATEMENT,
+
     // Expressions
     IDENTIFIER,
     INTEGER_LITERAL,
+    FLOAT_LITERAL,
     STRING_LITERAL,
     BOOLEAN_LITERAL,
     NIL_LITERAL,
-    ARRAY_LITERAL,
-    MAP_LITERAL,
+    ARRAY_LITERAL,      // Phase 4: [a, b, c]
+    MAP_LITERAL,        // Phase 4: {"k": v}
+    INDEX_EXPRESSION,   // Phase 4: obj[i]
     INFIX_EXPRESSION,
     PREFIX_EXPRESSION,
     CALL_EXPRESSION,
-    MEMBER_ACCESS_EXPRESSION, // For obj.property
-    FN_LITERAL, // New: Function literal as an expression
-    EMPTY_EXPRESSION // For temporary empty block expressions like {}
+    MEMBER_ACCESS_EXPRESSION,
+    FN_LITERAL,
+    EMPTY_EXPRESSION
 } AST_NodeType;
 
-
 // --- BASE NODES ---
-// A generic node type
-typedef struct AST_Node {
-    AST_NodeType type;
-} AST_Node;
+typedef struct AST_Node   { AST_NodeType type; } AST_Node;
 
 typedef struct AST_Statement {
     AST_NodeType type;
-    Token token; // The primary token of the statement (e.g., TOKEN_SET)
+    Token token;
 } AST_Statement;
 
 typedef struct AST_Expression {
     AST_NodeType type;
-    Token token; // The primary token of the expression
+    Token token;
 } AST_Expression;
-
 
 // --- EXPRESSIONS ---
 
@@ -70,35 +68,49 @@ typedef struct {
 
 typedef struct {
     AST_Expression base;
+    double value;
+} AST_Expression_FloatLiteral;
+
+typedef struct {
+    AST_Expression base;
     char* value;
 } AST_Expression_StringLiteral;
 
 typedef struct {
     AST_Expression base;
-    int value; // 1 for true, 0 for false
+    int value;
 } AST_Expression_Boolean;
 
 typedef struct {
     AST_Expression base;
-    // No value needed for nil
 } AST_Expression_NilLiteral;
 
+// Phase 4: list literal  [a, b, c]
 typedef struct {
     AST_Expression base;
     AST_Expression** elements;
     int element_count;
 } AST_Expression_ArrayLiteral;
 
+// Phase 4: map entry  key: value
 typedef struct {
     AST_Expression* key;
     AST_Expression* value;
 } AST_MapEntry;
 
+// Phase 4: dict literal  {"k": v, ...}
 typedef struct {
     AST_Expression base;
     AST_MapEntry** entries;
     int entry_count;
 } AST_Expression_MapLiteral;
+
+// Phase 4: index expression  obj[i]
+typedef struct {
+    AST_Expression base;
+    AST_Expression* left;   // the collection
+    AST_Expression* index;  // the index expression
+} AST_Expression_Index;
 
 typedef struct {
     AST_Expression base;
@@ -115,10 +127,17 @@ typedef struct {
 
 typedef struct {
     AST_Expression base;
-    AST_Expression* function; // Identifier or other expression
+    AST_Expression* function;
     AST_Expression** arguments;
     int argument_count;
 } AST_Expression_Call;
+
+// member access:  obj.field
+typedef struct {
+    AST_Expression base;
+    AST_Expression* object;   // the left side (e.g. identifier "time")
+    char*           member;   // the field name (e.g. "now")
+} AST_Expression_MemberAccess;
 
 typedef struct AST_Expression_FnLiteral {
     AST_Expression base;
@@ -129,27 +148,22 @@ typedef struct AST_Expression_FnLiteral {
 
 typedef struct {
     AST_Expression base;
-    // No specific fields needed for an empty expression beyond the base.
-} AST_Expression_Empty; // New struct definition
-
+} AST_Expression_Empty;
 
 // --- STATEMENTS ---
 
-// `set <name> = <value>`
 typedef struct {
     AST_Statement base;
     AST_Expression_Identifier* name;
     AST_Expression* value;
 } AST_Statement_Set;
 
-// A block of statements, e.g., an indented block
 typedef struct AST_Statement_Block {
     AST_Statement base;
     AST_Statement** statements;
     int statement_count;
 } AST_Statement_Block;
 
-// `fn <name>(<params>): <block>`
 typedef struct {
     AST_Statement base;
     AST_Expression_Identifier* name;
@@ -158,29 +172,25 @@ typedef struct {
     AST_Statement_Block* body;
 } AST_Statement_FnDef;
 
-// `class <name>: <block>`
 typedef struct {
     AST_Statement base;
     AST_Expression_Identifier* name;
     AST_Statement_Block* body;
 } AST_Statement_ClassDef;
 
-// `if <condition>: <consequence> else: <alternative>`
 typedef struct {
     AST_Statement base;
     AST_Expression* condition;
     AST_Statement_Block* consequence;
-    AST_Statement* alternative; // Can be another IF_STATEMENT or a BLOCK_STATEMENT
+    AST_Statement* alternative;
 } AST_Statement_If;
 
-// `while <condition>: <body>`
 typedef struct {
     AST_Statement base;
     AST_Expression* condition;
     AST_Statement_Block* body;
 } AST_Statement_While;
 
-// `for <iterator> in <iterable>: <body>`
 typedef struct {
     AST_Statement base;
     AST_Expression_Identifier* iterator;
@@ -188,14 +198,12 @@ typedef struct {
     AST_Statement_Block* body;
 } AST_Statement_For;
 
-// A single case in a match statement: `case <pattern>: <consequence>`
 typedef struct {
-    AST_Statement base; // Inherit from AST_Statement
+    AST_Statement base;
     AST_Expression* pattern;
     AST_Statement_Block* consequence;
 } AST_Statement_MatchCase;
 
-// `match <value>: ...cases`
 typedef struct {
     AST_Statement base;
     AST_Expression* value;
@@ -203,28 +211,27 @@ typedef struct {
     int case_count;
 } AST_Statement_Match;
 
-// `return <value>`
 typedef struct {
     AST_Statement base;
     AST_Expression* return_value;
 } AST_Statement_Return;
 
-// A statement that is just an expression, e.g. a function call `print()`
 typedef struct {
     AST_Statement base;
     AST_Expression* expression;
 } AST_Statement_Expression;
 
+// use <module_name>
+typedef struct {
+    AST_Statement base;
+    char* module_name;   // e.g. "time"
+    char* alias;         // e.g. from "use time as t" → "t" (NULL if no alias)
+} AST_Statement_Use;
 
 // --- PROGRAM ---
-// The root of every AST our parser produces.
 typedef struct {
     AST_Statement** statements;
     int statement_count;
 } AST_Program;
 
-
-// --- Helper Functions (to be defined in ast.c) ---
-// e.g., void free_program(AST_Program* program);
-
-#endif //OMNIKARAI_AST_H
+#endif // OMNIKARAI_AST_H

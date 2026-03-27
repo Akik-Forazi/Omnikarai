@@ -1,0 +1,10 @@
+[metadata]
+name        = "testmulti"
+version     = "0.1.0"
+description = "Multi-file multi-folder test package for omnip"
+author      = "Akik Faraji"
+license     = "MIT"
+homepage    = ""
+repository  = ""
+
+[dependencies]

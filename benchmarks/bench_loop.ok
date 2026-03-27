@@ -1,0 +1,5 @@
+# bench_loop.ok — sum 1..100M
+set s = 0
+for i in range(100000001):
+    set s = s + i
+print(s)

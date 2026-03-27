@@ -1,0 +1,10 @@
+{
+  "name": "opi",
+  "version": "3.0.0",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.3",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.2.4"
+  }
+}

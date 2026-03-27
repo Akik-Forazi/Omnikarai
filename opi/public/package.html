@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Package — OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="opi.css">
+<style>
+.tab-pane{display:none}.tab-pane.active{display:block}
+.copy-btn{background:none;border:1px solid var(--line);border-radius:4px;color:var(--muted);
+  font-family:var(--mono);font-size:.68rem;padding:.18rem .55rem;cursor:pointer;transition:color .15s,border-color .15s;flex-shrink:0}
+.copy-btn:hover{color:var(--acc5);border-color:rgba(77,240,200,.4)}
+.install-box{
+  display:flex;align-items:center;gap:.5rem;
+  background:#01010e;border:1px solid rgba(139,107,255,.22);border-radius:var(--r);
+  padding:.7rem 1rem;font-family:var(--mono);font-size:.88rem;color:var(--acc5);
+  cursor:text;margin-bottom:.5rem;
+}
+.install-box code{flex:1;word-break:break-all}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div id="root" style="position:relative;z-index:1">
+  <div class="loading-center" style="height:70vh"><div class="spinner"></div></div>
+</div>
+<footer id="footer" class="footer"></footer>
+<script src="opi.js"></script>
+<script>
+async function pageInit(){
+  const name=new URLSearchParams(location.search).get('name');
+  if(!name){
+    qs('#root').innerHTML=`<div class="empty" style="height:60vh">
+      <h3>No package specified</h3>
+      <a href="search.html" class="btn btn-ghost btn-sm" style="margin-top:1rem">Browse packages</a>
+    </div>`;return;
+  }
+
+  const {ok,data:p,status}=await api(`/packages/${encodeURIComponent(name)}`);
+  if(!ok){
+    qs('#root').innerHTML=`<div class="empty" style="height:60vh">
+      <h3>${status===404?`"${esc(name)}" not found`:'Failed to load package'}</h3>
+      <p style="margin:.4rem 0 1rem">${status===404?'This package does not exist on OPI.':esc(p?.error||'Try again later.')}</p>
+      <a href="search.html" class="btn btn-ghost btn-sm">Browse packages</a>
+    </div>`;return;
+  }
+
+  document.title=`${p.name} · OPI`;
+
+  // API returns versions[] (strings) and latest_release (full object)
+  const versions   = p.versions || [p.latest];
+  const release    = p.latest_release || {};
+  const deps       = release.dependencies || p.dependencies || {};
+  const devDeps    = release.dev_dependencies || {};
+  const hasDeps    = Object.keys(deps).length > 0;
+  const hasDevDeps = Object.keys(devDeps).length > 0;
+  const readme     = release.readme || p.readme || '';
+  const changelog  = release.changelog || '';
+
+  function depRows(obj){
+    return Object.entries(obj).map(([k,v])=>`
+      <div class="panel-row">
+        <a href="package.html?name=${encodeURIComponent(k)}" style="font-family:var(--mono);font-size:.83rem;color:var(--accent)">${esc(k)}</a>
+        <span style="font-family:var(--mono);font-size:.75rem;color:var(--muted)">${esc(String(v))}</span>
+      </div>`).join('');
+  }
+
+  qs('#root').innerHTML=`
+  <!-- ── Header ── -->
+  <div style="border-bottom:1px solid var(--line);background:rgba(4,4,22,.75);width:100%">
+    <div class="wrap" style="padding-top:.9rem;padding-bottom:0">
+      <div style="font-size:.74rem;color:var(--muted);margin-bottom:.55rem;font-family:var(--mono);display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
+        <a href="index.html" style="color:var(--muted);transition:color .15s" onmouseover="this.style.color='var(--al)'" onmouseout="this.style.color='var(--muted)'">OPI</a>
+        <span style="opacity:.4">/</span>
+        <a href="user.html?u=${esc(p.owner)}" style="color:var(--muted);transition:color .15s" onmouseover="this.style.color='var(--al)'" onmouseout="this.style.color='var(--muted)'">@${esc(p.owner)}</a>
+        <span style="opacity:.4">/</span>
+        <span style="color:var(--fg);font-weight:600">${esc(p.name)}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.6rem">
+        <h1 style="font-size:1.4rem;font-weight:800;font-family:var(--mono);letter-spacing:-.02em">${esc(p.name)}</h1>
+        <span class="badge badge-accent">v${esc(p.latest)}</span>
+        ${p.yanked?'<span class="badge badge-red">Yanked</span>':''}
+        <span class="badge badge-dim">${esc(p.license||'MIT')}</span>
+      </div>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:.7rem;max-width:620px;line-height:1.65">${esc(p.description||'')}</p>
+      ${(p.keywords||[]).length?`<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.7rem">
+        ${p.keywords.map(k=>`<a href="search.html?q=${encodeURIComponent(k)}" class="tag">${esc(k)}</a>`).join('')}
+      </div>`:''}
+      <!-- Tabs -->
+      <div class="tab-bar" style="margin-bottom:0">
+        <button class="tab-btn active" onclick="switchTab('readme',this)">README</button>
+        <button class="tab-btn" onclick="switchTab('versions',this)">Versions <span class="tab-count">${versions.length}</span></button>
+        <button class="tab-btn" onclick="switchTab('deps',this)">Dependencies <span class="tab-count">${Object.keys(deps).length}</span></button>
+        ${changelog?`<button class="tab-btn" onclick="switchTab('changelog',this)">Changelog</button>`:''}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="page">
+    <div class="grid-sidebar">
+      <!-- Main content -->
+      <div>
+        <div class="tab-pane active" id="pane-readme">
+          <div class="panel">
+            <div class="panel-hdr"><span>README</span></div>
+            <div class="prose" style="padding:1.25rem 1.5rem">${readme?md(readme):'<p style="color:var(--muted);font-style:italic">No README provided.</p>'}</div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="pane-versions">
+          <div class="panel">
+            <div class="panel-hdr"><span>Version history</span></div>
+            ${[...versions].reverse().map(v=>`
+            <div class="panel-row">
+              <div style="display:flex;align-items:center;gap:.5rem">
+                <span style="font-family:var(--mono);font-size:.83rem;${v===p.latest?'color:var(--al)':'color:var(--muted)'}">${esc(v)}</span>
+                ${v===p.latest?'<span class="badge badge-accent">latest</span>':''}
+              </div>
+              <code class="inline-code" style="font-size:.7rem">omnip install ${esc(p.name)}@${esc(v)}</code>
+            </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="tab-pane" id="pane-deps">
+          ${hasDeps?`<div class="panel" style="margin-bottom:.75rem">
+            <div class="panel-hdr"><span>Dependencies</span></div>
+            ${depRows(deps)}
+          </div>`:''}
+          ${hasDevDeps?`<div class="panel" style="margin-bottom:.75rem">
+            <div class="panel-hdr"><span>Dev Dependencies</span></div>
+            ${depRows(devDeps)}
+          </div>`:''}
+          ${!hasDeps&&!hasDevDeps?`<div class="panel"><div style="padding:2rem;text-align:center;color:var(--muted);font-size:.85rem">No dependencies — this package stands alone.</div></div>`:''}
+        </div>
+
+        ${changelog?`<div class="tab-pane" id="pane-changelog">
+          <div class="panel">
+            <div class="panel-hdr"><span>Changelog</span></div>
+            <div class="prose" style="padding:1.25rem 1.5rem">${md(changelog)}</div>
+          </div>
+        </div>`:''}
+      </div>
+
+      <!-- Sidebar -->
+      <aside>
+        <!-- Install -->
+        <div class="panel" style="margin-bottom:.85rem">
+          <div class="panel-hdr"><span>Install</span></div>
+          <div style="padding:.75rem .85rem">
+            <div class="install-box" id="install-cmd">
+              <code>omnip install ${esc(p.name)}</code>
+              <button class="copy-btn" onclick="copyText('omnip install ${esc(p.name)}',this)">Copy</button>
+            </div>
+            ${hasDeps?`<div style="font-size:.72rem;color:var(--muted);font-family:var(--mono)">
+              Deps: ${Object.keys(deps).map(k=>`<code class="inline-code" style="font-size:.7rem">${esc(k)}</code>`).join(' ')}
+            </div>`:''}
+          </div>
+        </div>
+
+        <!-- Meta -->
+        <div class="panel" style="margin-bottom:.85rem">
+          <div class="panel-hdr"><span>About</span></div>
+          <div>
+            <div class="panel-row"><span class="panel-lbl">Owner</span><span class="panel-val"><a href="user.html?u=${esc(p.owner)}">@${esc(p.owner)}</a></span></div>
+            <div class="panel-row"><span class="panel-lbl">Downloads</span><span class="panel-val">${fmt(p.total_downloads||0)}</span></div>
+            <div class="panel-row"><span class="panel-lbl">Updated</span><span class="panel-val">${elapsed(p.updated_at||p.created_at)}</span></div>
+            <div class="panel-row"><span class="panel-lbl">License</span><span class="panel-val">${esc(p.license||'MIT')}</span></div>
+            <div class="panel-row"><span class="panel-lbl">Versions</span><span class="panel-val">${versions.length}</span></div>
+            ${p.homepage?`<div class="panel-row"><span class="panel-lbl">Homepage</span><span class="panel-val"><a href="${esc(p.homepage)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(p.homepage.replace(/^https?:\/\//,'').slice(0,32))}</a></span></div>`:''}
+            ${p.repository?`<div class="panel-row"><span class="panel-lbl">Repo</span><span class="panel-val"><a href="${esc(p.repository)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(p.repository.replace(/^https?:\/\/(www\.|github\.com\/)?/,'').slice(0,32))}</a></span></div>`:''}
+          </div>
+        </div>
+
+        <!-- Version picks -->
+        <div class="panel" style="margin-bottom:.85rem">
+          <div class="panel-hdr"><span>Quick install</span></div>
+          <div style="padding:.65rem .85rem">
+            ${[...versions].reverse().slice(0,5).map(v=>{
+              const cmd=`omnip install ${p.name}@${v}`;
+              return `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+                <code style="flex:1;font-family:var(--mono);font-size:.7rem;color:var(--acc5);word-break:break-all">${esc(cmd)}</code>
+                <button class="copy-btn" onclick="copyText('${cmd.replace(/'/g,"\\'")
+}',this)">Copy</button>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- API -->
+        <div class="panel">
+          <div class="panel-hdr"><span>API endpoint</span></div>
+          <div style="padding:.65rem .85rem;font-family:var(--mono);font-size:.72rem;color:var(--acc5);word-break:break-all">
+            GET /api/packages/${esc(p.name)}
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>`;
+
+  // Tab switching
+  window.switchTab=function(id, btn){
+    qsa('.tab-pane').forEach(el=>el.classList.remove('active'));
+    qsa('.tab-btn').forEach(el=>el.classList.remove('active'));
+    const pane=qs('#pane-'+id);
+    if(pane) pane.classList.add('active');
+    if(btn) btn.classList.add('active');
+  };
+}
+</script>
+</body>
+</html>

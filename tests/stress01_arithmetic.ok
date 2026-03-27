@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════
+#  STRESS TEST 01 — Arithmetic & Math Extremes
+#  Tests: large numbers, negative numbers, chained ops,
+#         operator precedence, integer limits, modulo,
+#         float coexistence, math module full coverage
+#  Expected: all values printed correctly, no crash
+# ═══════════════════════════════════════════════════════════
+
+use math
+
+# --- large integers ---
+set big = 1000000000
+set bigger = big * 1000
+set biggest = bigger * 1000
+print(big)
+print(bigger)
+print(biggest)
+
+# --- negative arithmetic ---
+set neg = 0 - 100
+set double_neg = 0 - neg
+print(neg)
+print(double_neg)
+
+# --- chained arithmetic ---
+set chain = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+print(chain)
+
+# --- modulo ---
+print(17 % 5)
+print(100 % 7)
+print(0 % 3)
+
+# --- comparisons returning booleans ---
+print(5 > 3)
+print(5 < 3)
+print(5 >= 5)
+print(5 <= 4)
+print(5 == 5)
+print(5 != 4)
+
+# --- math module stress ---
+print(math.sqrt(144))
+print(math.abs(0 - 42))
+print(math.floor(3))
+print(math.ceil(3))
+print(math.min(10, 20))
+print(math.max(10, 20))
+print(math.clamp(150, 0, 100))
+print(math.clamp(0 - 5, 0, 100))
+print(math.pow(2, 10))
+print(math.gcd(48, 18))
+
+return 0

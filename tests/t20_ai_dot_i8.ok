@@ -1,0 +1,34 @@
+# TEST 20 — ai.dot_i8: INT8 quantized dot product via VPMADDUBSW
+# a = [1,2,3,4,5,6,7,8,...] as uint8 packed into int64 slots (1 byte per slot)
+# b = [1,1,1,1,1,1,1,1,...] as int8
+# dot = 1+2+3+4+5+6+7+8 = 36
+
+use ai
+
+set a = ai.alloc(8)
+set b = ai.alloc(8)
+
+# Store uint8 values as int64 (low byte only used)
+ai.set(a, 0, 1)
+ai.set(a, 1, 2)
+ai.set(a, 2, 3)
+ai.set(a, 3, 4)
+ai.set(a, 4, 5)
+ai.set(a, 5, 6)
+ai.set(a, 6, 7)
+ai.set(a, 7, 8)
+
+ai.set(b, 0, 1)
+ai.set(b, 1, 1)
+ai.set(b, 2, 1)
+ai.set(b, 3, 1)
+ai.set(b, 4, 1)
+ai.set(b, 5, 1)
+ai.set(b, 6, 1)
+ai.set(b, 7, 1)
+
+set result = ai.dot_i8(a, b, 8)
+print(result)
+
+ai.free(a)
+ai.free(b)
