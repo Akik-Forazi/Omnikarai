@@ -141,14 +141,22 @@ typedef struct {
     int          continue_patch_count;
 
     // v4.0+: Register-pinned variables
-    // Slots 0-1: r14, r15 (for-loop counters — existing)
-    // Slots 2-4: rbx, r12, r13 (while-loop hot vars — new in v6.0)
-    // reg_var_depth: number of currently pinned variables
+    // Slots 0-1: r14, r15 (for-loop counters)
+    // Slots 2-4: rbx, r12, r13 (while/for hot vars)
+    // Slots 5-6: rsi, rdi  (extra callee-saved slots)
     int          reg_var_depth;
-    char         reg_var_names[5][64]; // names of register-pinned variables
-    // reg_var_saved[i]: 1 if this slot's register was saved before pinning
-    int          reg_var_saved[5];
+    char         reg_var_names[7][64]; // names of register-pinned variables
+    int          reg_var_saved[7];
     int          in_main_body;         // 1 when emitting main body (not inside a fn)
+
+    // ── Ephemeral pass: store+load elimination ──────────────────────────────
+    // Tracks the last stack slot written by emit_store_rax so that a
+    // subsequent emit_load_rax/rcx/rdx of the same slot can be replaced
+    // by a register-register MOV (or eliminated entirely when dest==RAX).
+    // Reset to -1 whenever a CALL, branch, or store to a different slot occurs.
+    int          eph_last_store_off;   // stack offset of last emit_store_rax (-1 = none)
+    int          eph_last_store_reg;   // 0=RAX, 1=RCX, 2=RDX (which reg held the value)
+    size_t       eph_store_code_pos;   // code position of the store instruction
 } CodeGen;
 
 // ============================================================

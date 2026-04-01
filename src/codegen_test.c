@@ -161,16 +161,41 @@ __attribute__((noinline)) void omni_print_float(double v) {
     char buf[64]; int len=snprintf(buf,sizeof(buf)-1,"%.6g\n",v); if(len<0)len=0;
     DWORD w; WriteFile(g_stdout,buf,(DWORD)len,&w,NULL);
 }
+static char  s_ibuf[65536];
+static DWORD s_ibuf_head = 0;
+static DWORD s_ibuf_tail = 0;
+static BOOL  s_ibuf_eof  = FALSE;
+
 __attribute__((noinline)) char* omni_input(void) {
     omni_io_init();
-    char* buf=(char*)malloc(1024); if(!buf) return (char*)"";
-    DWORD read=0;
-    BOOL ok=ReadConsoleA(g_stdin,buf,1023,&read,NULL);
-    if(!ok||read==0){buf[0]='\0';return buf;}
-    if(read>=2&&buf[read-2]=='\r') buf[read-2]='\0';
-    else if(read>=1&&(buf[read-1]=='\n'||buf[read-1]=='\r')) buf[read-1]='\0';
-    else buf[read]='\0';
-    return buf;
+    FlushFileBuffers(g_stdout);
+    char* out = (char*)malloc(1024);
+    if (!out) return (char*)"";
+    int olen = 0;
+    while (olen < 1022) {
+        if (s_ibuf_head >= s_ibuf_tail) {
+            if (s_ibuf_eof) break;
+            DWORD rd = 0;
+            BOOL  ok = ReadFile(g_stdin, s_ibuf, sizeof(s_ibuf), &rd, NULL);
+            if (!ok || rd == 0) { s_ibuf_eof = TRUE; break; }
+            s_ibuf_head = 0;
+            s_ibuf_tail = rd;
+        }
+        char c = s_ibuf[s_ibuf_head++];
+        if (c == '\n') break;
+        if (c == '\r') continue;
+        out[olen++] = c;
+    }
+    if (olen == 0 && s_ibuf_eof) {
+        DWORD w;
+        WriteFile(g_stdout, "\n", 1, &w, NULL);
+        FlushFileBuffers(g_stdout);
+        WriteFile(GetStdHandle(STD_ERROR_HANDLE),
+                  "\nInputError: reached end of input (EOF on stdin)\n", 49, &w, NULL);
+        free(out); ExitProcess(1);
+    }
+    out[olen] = '\0';
+    return out;
 }
 __attribute__((noinline)) int64_t omni_len_str(const char* s) {
     if(!s) return 0; int64_t n=0; while(s[n]) n++; return n;

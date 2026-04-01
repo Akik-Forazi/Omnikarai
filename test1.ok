@@ -8,6 +8,7 @@ class Person:
 
 set input_name = input("Enter your name\n=> ")
 set input_age = input("Enter your age\n=> ")
+input_age = 19
 
 set p = Person(input_name, input_age)
 

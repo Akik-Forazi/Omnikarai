@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Iinclude -Wall -Wextra -std=c99 -O2
+CFLAGS = -Iinclude -Wall -Wextra -std=c99 -O3 -march=native -mavx2 -mfma -ffast-math -DNDEBUG
 LDFLAGS = -lkernel32 -lm
 
 OMNICC  = bin/omnicc.exe
@@ -12,7 +12,7 @@ $(OMNICC): $(SOURCES) | bin
 	$(CC) $(CFLAGS) -o $(OMNICC) $(SOURCES) $(LDFLAGS)
 
 $(OMNIP): omnip/src/omnip.c | bin
-	$(CC) -Wall -O2 -o $(OMNIP) omnip/src/omnip.c -lkernel32 -lwinhttp
+	$(CC) -Wall -O3 -march=native -o $(OMNIP) omnip/src/omnip.c -lkernel32 -lwinhttp
 
 bin:
 	mkdir bin

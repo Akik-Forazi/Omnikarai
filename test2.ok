@@ -1,2 +1,2 @@
-set name = input("Input your name\n=> ")
-print("Hello, " + name)
+print("Hello World! From Omnikarai!")
+

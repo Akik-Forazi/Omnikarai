@@ -1,4 +1,4 @@
-import strutil
+imp strutil
 import testmulti
 import testmulti.utils.strings as str2
 import testmulti.math.basic as mth

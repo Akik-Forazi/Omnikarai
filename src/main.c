@@ -1,5 +1,5 @@
 // ============================================================
-//  OMNIKARAI Compiler — omnicc  v5.0
+//  OMNIKARAI Compiler — omnicc  v6.0
 //  Windows x64 — No LLVM — No runtime dependency
 //
 //  Usage:
