@@ -1,0 +1,62 @@
+# ── Compiled binaries ──────────────────────────────────────────────
+bin/
+*.exe
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+*.pdb
+*.ilk
+*.map
+
+# ── Benchmark compiled artifacts ───────────────────────────────────
+benchmarks/*.exe
+benchmarks/*.obj
+benchmarks/*.o
+
+# ── Temp / scratch files ───────────────────────────────────────────
+tmp_input.txt
+_err.txt
+_out.txt
+_*.ok
+*.tmp
+
+# ── Loose root-level test files (move to tests/ eventually) ────────
+test1.ok
+test2.ok
+test3.ok
+test4.ok
+test_fn_debug.ok
+test_matmul_small.ok
+test_modules.ok
+test_pkg_syntax.ok
+test_use.ok
+hello.ok
+hello.py
+
+# ── Dev scratch scripts ────────────────────────────────────────────
+scripts/
+
+# ── Internal journals / personal notes ────────────────────────────
+journal.txt
+Bench_results.txt
+
+# ── Docs (not ready for public) ───────────────────────────────────
+docs/
+
+# ── Build artifacts ────────────────────────────────────────────────
+*.log
+__pycache__/
+*.pyc
+
+# ── OS noise ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor noise ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
