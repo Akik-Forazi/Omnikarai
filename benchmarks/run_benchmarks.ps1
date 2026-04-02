@@ -3,7 +3,7 @@ $bench = "$root\benchmarks"
 Set-Location $root
 
 # Build Omnikarai
-$b = & gcc -Iinclude -O2 -o bin/omnicc.exe src/main.c src/lexer.c src/parser.c src/codegen.c -lkernel32 -lm 2>&1
+$b = & gcc -Iinclude -O3 -o bin/omnicc.exe src/main.c src/lexer.c src/parser.c src/codegen.c -lkernel32 -lm 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Host "BUILD FAILED" -ForegroundColor Red; $b; exit 1 }
 Write-Host "BUILD OK" -ForegroundColor Green
 

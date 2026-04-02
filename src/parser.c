@@ -39,11 +39,15 @@ static AST_Expression* parse_nil(Parser* p);
 static AST_Expression* parse_string_literal(Parser* p);
 static AST_Expression* parse_grouped_expression(Parser* p);
 static AST_Expression* parse_empty_block_expression(Parser* p);
+static AST_Expression* parse_array_literal(Parser* p);
+static AST_Expression* parse_map_literal(Parser* p);
+static AST_Expression* parse_index_expression(Parser* p, AST_Expression* left);
+static AST_Expression* parse_fstring_expression(Parser* p);
 static AST_Expression* parse_call_expression(Parser* p, AST_Expression* function);
 static AST_Expression** parse_call_arguments(Parser* p);
 static AST_Statement* parse_if_statement(Parser* p);
 static AST_Statement* parse_fn_definition(Parser* p);
-static AST_Expression* parse_fn_expression(Parser* p); // New prototype for function literals
+static AST_Expression* parse_fn_expression(Parser* p);
 static AST_Expression_Identifier** parse_function_parameters(Parser* p);
 static AST_Statement* parse_while_statement(Parser* p);
 static AST_Statement* parse_for_statement(Parser* p);
@@ -52,7 +56,7 @@ static AST_Statement* parse_match_statement(Parser* p);
 static AST_Statement_MatchCase* parse_match_case(Parser* p);
 static AST_Statement* parse_return_statement(Parser* p);
 static AST_Expression* parse_semicolon_operator(Parser* p, AST_Expression* left);
-static AST_Expression* parse_single_token_expression(Parser* p); // New prototype
+static AST_Expression* parse_single_token_expression(Parser* p);
 
 
 // Token management helper prototypes and implementations
@@ -126,11 +130,50 @@ static AST_Statement* parse_set_statement(Parser* p) {
     }
 
     AST_Expression_Identifier* name = (AST_Expression_Identifier*)parse_identifier(p);
-    if (name == NULL) { // Check if parse_identifier failed
+    if (name == NULL) {
         free(stmt);
         return NULL;
     }
     stmt->name = name;
+
+    /* ── set lst[i] = val  — index assignment ──
+       Desugar into EXPRESSION_STATEMENT containing INFIX "=" with
+       INDEX_EXPRESSION on the left and rhs value on the right.
+       Codegen handles this in the EXPRESSION_STATEMENT augmented-assign path. */
+    if (peek_token_is(p, TOKEN_LBRACKET)) {
+        /* parse the index expression: name[idx] */
+        AST_Expression* left_id = (AST_Expression*)name;
+        parser_next_token(p); /* consume '[' */
+        AST_Expression_Index* idx_node = malloc(sizeof(AST_Expression_Index));
+        idx_node->base.type  = INDEX_EXPRESSION;
+        idx_node->base.token = p->currentToken;
+        idx_node->left       = left_id;
+        parser_next_token(p); /* move to index expression */
+        idx_node->index = parse_expression(p, PREC_LOWEST);
+        if (!expect_peek(p, TOKEN_RBRACKET)) {
+            free(idx_node); free(stmt); return NULL;
+        }
+        /* now expect '=' */
+        if (!expect_peek(p, TOKEN_ASSIGN)) {
+            free(idx_node); free(stmt); return NULL;
+        }
+        parser_next_token(p); /* move past '=' */
+        AST_Expression* rhs = parse_expression(p, PREC_LOWEST);
+        /* Build INFIX "=" node: INDEX_EXPRESSION = rhs */
+        AST_Expression_Infix* assign = malloc(sizeof(AST_Expression_Infix));
+        assign->base.type  = INFIX_EXPRESSION;
+        assign->base.token = p->currentToken;
+        assign->operator   = (char*)"=";
+        assign->left       = (AST_Expression*)idx_node;
+        assign->right      = rhs;
+        /* Wrap in EXPRESSION_STATEMENT */
+        AST_Statement_Expression* es = malloc(sizeof(AST_Statement_Expression));
+        es->base.type  = EXPRESSION_STATEMENT;
+        es->base.token = p->currentToken;
+        es->expression = (AST_Expression*)assign;
+        free(stmt); /* discard the half-built SET_STATEMENT */
+        return (AST_Statement*)es;
+    }
 
     if (!expect_peek(p, TOKEN_ASSIGN)) {
         free(name->value);
@@ -141,9 +184,8 @@ static AST_Statement* parse_set_statement(Parser* p) {
     
     parser_next_token(p);
     stmt->value = parse_expression(p, PREC_LOWEST);
-    if (stmt->value == NULL) { // Check if parse_expression failed
-        // TODO: Free name here
-        free(stmt); // Note: name still needs to be freed
+    if (stmt->value == NULL) {
+        free(stmt);
         return NULL;
     }
     return (AST_Statement*)stmt;
@@ -378,30 +420,32 @@ static AST_Statement* parse_match_statement(Parser* p) {
 static AST_Statement* parse_use_statement(Parser* p) {
     AST_Statement_Use* stmt = malloc(sizeof(AST_Statement_Use));
     stmt->base.type  = USE_STATEMENT;
-    stmt->base.token = p->currentToken; // 'use' token
+    stmt->base.token = p->currentToken;
     stmt->alias      = NULL;
 
     if (!expect_peek(p, TOKEN_IDENT)) { free(stmt); return NULL; }
-    stmt->module_name = malloc(strlen(p->currentToken.literal) + 1);
-    strcpy_s(stmt->module_name, strlen(p->currentToken.literal) + 1, p->currentToken.literal);
 
-    // Optional:  use time as t
+    /* Build module name, handling dotted paths: ai.torch, ai.torch.nn, etc. */
+    char modname[256];
+    strcpy_s(modname, sizeof(modname), p->currentToken.literal);
+    while (peek_token_is(p, TOKEN_DOT)) {
+        parser_next_token(p); /* consume '.' */
+        if (!expect_peek(p, TOKEN_IDENT)) break;
+        strncat_s(modname, sizeof(modname), ".", _TRUNCATE);
+        strncat_s(modname, sizeof(modname), p->currentToken.literal, _TRUNCATE);
+    }
+    stmt->module_name = malloc(strlen(modname) + 1);
+    strcpy_s(stmt->module_name, strlen(modname) + 1, modname);
+
+    /* Optional alias:  use time as t  |  use ai.torch as torch */
     if (peek_token_is(p, TOKEN_AS)) {
-        parser_next_token(p); // consume 'as'
+        parser_next_token(p);
         if (!expect_peek(p, TOKEN_IDENT)) { return (AST_Statement*)stmt; }
         stmt->alias = malloc(strlen(p->currentToken.literal) + 1);
         strcpy_s(stmt->alias, strlen(p->currentToken.literal) + 1, p->currentToken.literal);
     }
 
-    // Advance past the trailing NL so parse_program sees currentToken==TOKEN_NL
-    // and its top-of-loop skipper handles it — same contract as simple stmts
-    // that leave currentToken on their last meaningful token (the NL here).
-    // Without this, parse_program's "simple stmt advance" eats the NL and
-    // then the first token of the next statement, corrupting the parse stream.
-    if (peek_token_is(p, TOKEN_NL)) {
-        parser_next_token(p); // now currentToken == TOKEN_NL
-    }
-
+    if (peek_token_is(p, TOKEN_NL)) parser_next_token(p);
     return (AST_Statement*)stmt;
 }
 
@@ -523,6 +567,7 @@ static Precedence get_precedence(OmniTokenType type) {
         case TOKEN_SLASH:    return PREC_PRODUCT;
         case TOKEN_STAR:     return PREC_PRODUCT;
         case TOKEN_PERCENT:  return PREC_PRODUCT;
+        case TOKEN_POWER:    return PREC_PRODUCT + 1; // ** binds tighter than * / %
         case TOKEN_AND:      return PREC_EQUALS;   // lower than comparisons
         case TOKEN_OR:       return PREC_EQUALS;   // same level as and for now
         case TOKEN_LPAREN:   return PREC_CALL;
@@ -594,10 +639,239 @@ static AST_Expression* parse_grouped_expression(Parser* p) {
     parser_next_token(p); // Consume '('
     AST_Expression* expr = parse_expression(p, PREC_LOWEST);
     if (!expect_peek(p, TOKEN_RPAREN)) {
-        // In a real parser, you'd free the expression `expr` here
         return NULL;
     }
     return expr;
+}
+
+/* ── List literal: [a, b, c] ── */
+static AST_Expression* parse_array_literal(Parser* p) {
+    AST_Expression_ArrayLiteral* arr = malloc(sizeof(AST_Expression_ArrayLiteral));
+    arr->base.type   = ARRAY_LITERAL;
+    arr->base.token  = p->currentToken; /* the '[' token */
+    arr->elements    = NULL;
+    arr->element_count = 0;
+
+    /* empty list [] */
+    if (peek_token_is(p, TOKEN_RBRACKET)) {
+        parser_next_token(p); /* consume ']' */
+        return (AST_Expression*)arr;
+    }
+
+    int cap = 8;
+    arr->elements = malloc(cap * sizeof(AST_Expression*));
+
+    parser_next_token(p); /* move to first element */
+    while (current_token_is(p, TOKEN_NL)) parser_next_token(p);
+
+    arr->elements[arr->element_count++] = parse_expression(p, PREC_LOWEST);
+
+    while (peek_token_is(p, TOKEN_COMMA)) {
+        parser_next_token(p); /* consume ',' */
+        parser_next_token(p); /* move to next element */
+        while (current_token_is(p, TOKEN_NL)) parser_next_token(p);
+        if (current_token_is(p, TOKEN_RBRACKET)) break; /* trailing comma */
+        if (arr->element_count >= cap) {
+            cap *= 2;
+            arr->elements = realloc(arr->elements, cap * sizeof(AST_Expression*));
+        }
+        arr->elements[arr->element_count++] = parse_expression(p, PREC_LOWEST);
+    }
+
+    while (peek_token_is(p, TOKEN_NL)) parser_next_token(p);
+    if (!expect_peek(p, TOKEN_RBRACKET)) { return (AST_Expression*)arr; }
+    return (AST_Expression*)arr;
+}
+
+/* ── Dict literal: {"key": val, ...} ── */
+static AST_Expression* parse_map_literal(Parser* p) {
+    AST_Expression_MapLiteral* map = malloc(sizeof(AST_Expression_MapLiteral));
+    map->base.type  = MAP_LITERAL;
+    map->base.token = p->currentToken; /* the '{' token */
+    map->entries    = NULL;
+    map->entry_count = 0;
+
+    while (peek_token_is(p, TOKEN_NL)) parser_next_token(p);
+    /* empty dict {} */
+    if (peek_token_is(p, TOKEN_RBRACE)) {
+        parser_next_token(p);
+        return (AST_Expression*)map;
+    }
+
+    int cap = 8;
+    map->entries = malloc(cap * sizeof(AST_MapEntry*));
+
+    parser_next_token(p); /* move to first key */
+    while (current_token_is(p, TOKEN_NL)) parser_next_token(p);
+
+    do {
+        if (current_token_is(p, TOKEN_RBRACE)) break;
+        AST_MapEntry* entry = malloc(sizeof(AST_MapEntry));
+        entry->key   = parse_expression(p, PREC_LOWEST);
+        if (!expect_peek(p, TOKEN_COLON)) { free(entry); break; }
+        parser_next_token(p);
+        entry->value = parse_expression(p, PREC_LOWEST);
+        if (map->entry_count >= cap) {
+            cap *= 2;
+            map->entries = realloc(map->entries, cap * sizeof(AST_MapEntry*));
+        }
+        map->entries[map->entry_count++] = entry;
+        while (peek_token_is(p, TOKEN_NL)) parser_next_token(p);
+        if (!peek_token_is(p, TOKEN_COMMA)) break;
+        parser_next_token(p); /* consume ',' */
+        parser_next_token(p);
+        while (current_token_is(p, TOKEN_NL)) parser_next_token(p);
+    } while (!current_token_is(p, TOKEN_EOF));
+
+    while (peek_token_is(p, TOKEN_NL)) parser_next_token(p);
+    if (!expect_peek(p, TOKEN_RBRACE)) { return (AST_Expression*)map; }
+    return (AST_Expression*)map;
+}
+
+/* ── Index expression: obj[i] ── */
+static AST_Expression* parse_index_expression(Parser* p, AST_Expression* left) {
+    AST_Expression_Index* idx = malloc(sizeof(AST_Expression_Index));
+    idx->base.type  = INDEX_EXPRESSION;
+    idx->base.token = p->currentToken; /* the '[' token */
+    idx->left       = left;
+    parser_next_token(p); /* move to index expression */
+    idx->index = parse_expression(p, PREC_LOWEST);
+    if (!expect_peek(p, TOKEN_RBRACKET)) { return (AST_Expression*)idx; }
+    return (AST_Expression*)idx;
+}
+
+/* ── F-string: f"Hello {name}, you are {age}!" ──
+   Expands to a chain of str.concat calls at parse time.
+   Segments between { } are parsed as expressions.
+   Literal segments become string literals. */
+static AST_Expression* parse_fstring_expression(Parser* p) {
+    /* The fstring token literal holds the raw content of f"..." */
+    const char* raw = p->currentToken.literal;
+    if (!raw) raw = "";
+    Token ftok = p->currentToken;
+
+    /* Parse f-string into segments: literal text and {expr} alternating.
+       Build as a chain: concat(literal, concat(expr_str, concat(...))) */
+
+    /* Collect segments */
+    typedef struct { char* text; int is_expr; } FSeg;
+    FSeg segs[256]; int nseg = 0;
+    char buf[65536]; int bi = 0;
+
+    for (const char* p2 = raw; *p2 && nseg < 255; ) {
+        if (*p2 == '{') {
+            if (p2[1] == '{') {
+                /* escaped {{ → literal { */
+                buf[bi++] = '{'; p2 += 2; continue;
+            }
+            /* end current literal segment */
+            if (bi > 0) {
+                buf[bi] = 0;
+                segs[nseg].text    = malloc(bi+1);
+                segs[nseg].is_expr = 0;
+                strcpy_s(segs[nseg].text, bi+1, buf);
+                nseg++; bi = 0;
+            }
+            /* collect expression text until matching } */
+            p2++;
+            int depth = 1; int ei = 0; char ebuf[4096];
+            while (*p2 && depth > 0 && ei < 4094) {
+                if (*p2 == '{') depth++;
+                else if (*p2 == '}') { depth--; if (!depth) { p2++; break; } }
+                ebuf[ei++] = *p2++;
+            }
+            ebuf[ei] = 0;
+            segs[nseg].text    = malloc(ei+1);
+            segs[nseg].is_expr = 1;
+            strcpy_s(segs[nseg].text, ei+1, ebuf);
+            nseg++;
+        } else if (*p2 == '}' && p2[1] == '}') {
+            buf[bi++] = '}'; p2 += 2;
+        } else {
+            buf[bi++] = *p2++;
+        }
+    }
+    /* trailing literal segment */
+    if (bi > 0) {
+        buf[bi] = 0;
+        segs[nseg].text    = malloc(bi+1);
+        segs[nseg].is_expr = 0;
+        strcpy_s(segs[nseg].text, bi+1, buf);
+        nseg++;
+    }
+
+    /* Build expression tree: each segment becomes a string or a str(expr) call.
+       All segments are joined with str.concat. */
+    if (nseg == 0) {
+        /* empty f-string */
+        AST_Expression_StringLiteral* s = malloc(sizeof(AST_Expression_StringLiteral));
+        s->base.type = STRING_LITERAL; s->base.token = ftok;
+        s->value = malloc(1); s->value[0] = 0;
+        for (int i=0;i<nseg;i++) free(segs[i].text);
+        return (AST_Expression*)s;
+    }
+
+    /* For each segment produce an AST_Expression: string lit or call to str() */
+    AST_Expression** parts = malloc(nseg * sizeof(AST_Expression*));
+    for (int i = 0; i < nseg; i++) {
+        if (!segs[i].is_expr) {
+            /* literal text segment */
+            AST_Expression_StringLiteral* s = malloc(sizeof(AST_Expression_StringLiteral));
+            s->base.type = STRING_LITERAL; s->base.token = ftok;
+            s->value = segs[i].text; /* owns it */
+            parts[i] = (AST_Expression*)s;
+        } else {
+            /* expression segment: parse it, wrap in str() call */
+            Lexer sub_lex;
+            lexer_init(&sub_lex, segs[i].text);
+            Parser* sub_p = new_parser(&sub_lex);
+            AST_Expression* inner = parse_expression(sub_p, PREC_LOWEST);
+            free_parser(sub_p);
+            free(sub_lex.indent_stack);
+            free(sub_lex.pending_tokens);
+            free(segs[i].text);
+
+            /* wrap: str(inner) */
+            AST_Expression_Identifier* str_id = malloc(sizeof(AST_Expression_Identifier));
+            str_id->base.type = IDENTIFIER; str_id->base.token = ftok;
+            str_id->value = malloc(4); strcpy_s(str_id->value, 4, "str");
+
+            AST_Expression_Call* call = malloc(sizeof(AST_Expression_Call));
+            call->base.type = CALL_EXPRESSION; call->base.token = ftok;
+            call->function  = (AST_Expression*)str_id;
+            call->arguments = malloc(2 * sizeof(AST_Expression*));
+            call->arguments[0] = inner;
+            call->arguments[1] = NULL;
+            call->argument_count = 1;
+            parts[i] = (AST_Expression*)call;
+        }
+    }
+
+    /* Chain with str.concat(a, str.concat(b, ...)) */
+    AST_Expression* result = parts[nseg - 1];
+    for (int i = nseg - 2; i >= 0; i--) {
+        /* str.concat(parts[i], result) */
+        AST_Expression_Identifier* str_id = malloc(sizeof(AST_Expression_Identifier));
+        str_id->base.type = IDENTIFIER; str_id->base.token = ftok;
+        str_id->value = malloc(4); strcpy_s(str_id->value, 4, "str");
+
+        AST_Expression_MemberAccess* ma = malloc(sizeof(AST_Expression_MemberAccess));
+        ma->base.type = MEMBER_ACCESS_EXPRESSION; ma->base.token = ftok;
+        ma->object    = (AST_Expression*)str_id;
+        ma->member    = malloc(7); strcpy_s(ma->member, 7, "concat");
+
+        AST_Expression_Call* call = malloc(sizeof(AST_Expression_Call));
+        call->base.type = CALL_EXPRESSION; call->base.token = ftok;
+        call->function  = (AST_Expression*)ma;
+        call->arguments = malloc(3 * sizeof(AST_Expression*));
+        call->arguments[0] = parts[i];
+        call->arguments[1] = result;
+        call->arguments[2] = NULL;
+        call->argument_count = 2;
+        result = (AST_Expression*)call;
+    }
+    free(parts);
+    return result;
 }
 
 static AST_Expression* parse_empty_block_expression(Parser* p) {
@@ -801,6 +1075,12 @@ static AST_Statement* parse_statement(Parser* p) {
             return parse_return_statement(p);
         case TOKEN_USE:
             return parse_use_statement(p);
+        case TOKEN_LET:
+            /* 'let x = expr' — treat identically to 'set x = expr' */
+            return parse_set_statement(p);
+        case TOKEN_PASS:
+            /* 'pass' — no-op statement; emit nothing */
+            return NULL;
         case TOKEN_BREAK: {
             AST_Statement_Expression* s = malloc(sizeof(AST_Statement_Expression));
             s->base.type = EXPRESSION_STATEMENT;
@@ -823,8 +1103,39 @@ static AST_Statement* parse_statement(Parser* p) {
             s->expression = (AST_Expression*)e;
             return (AST_Statement*)s;
         }
-        default:
+        default: {
+            /* Augmented assignment: x += e, x -= e, x *= e, x /= e, x %= e, x **= e
+               The Pratt parser can't handle these as infix because += etc have no
+               registered precedence > LOWEST, so the identifier gets parsed alone
+               and += becomes the start of the *next* statement.  We intercept here:
+               current=IDENT, peek=aug-assign-op -> build INFIX node directly. */
+            if (current_token_is(p, TOKEN_IDENT) &&
+                (peek_token_is(p, TOKEN_PLUS_ASSIGN)   ||
+                 peek_token_is(p, TOKEN_MINUS_ASSIGN)  ||
+                 peek_token_is(p, TOKEN_STAR_ASSIGN)   ||
+                 peek_token_is(p, TOKEN_SLASH_ASSIGN)  ||
+                 peek_token_is(p, TOKEN_PERCENT_ASSIGN)||
+                 peek_token_is(p, TOKEN_POWER_ASSIGN))) {
+                /* build: EXPRESSION_STATEMENT( INFIX(ident, op, rhs) ) */
+                AST_Expression* lhs = parse_identifier(p);  /* consumes IDENT */
+                parser_next_token(p);                        /* now on op token */
+                AST_Expression_Infix* inf = malloc(sizeof(AST_Expression_Infix));
+                inf->base.type  = INFIX_EXPRESSION;
+                inf->base.token = p->currentToken;
+                inf->operator   = malloc(strlen(p->currentToken.literal) + 1);
+                strcpy_s(inf->operator, strlen(p->currentToken.literal) + 1,
+                         p->currentToken.literal);
+                inf->left = lhs;
+                parser_next_token(p);                        /* advance to RHS */
+                inf->right = parse_expression(p, PREC_LOWEST);
+                AST_Statement_Expression* stmt = malloc(sizeof(AST_Statement_Expression));
+                stmt->base.type  = EXPRESSION_STATEMENT;
+                stmt->base.token = lhs->token;
+                stmt->expression = (AST_Expression*)inf;
+                return (AST_Statement*)stmt;
+            }
             return (AST_Statement*)parse_expression_statement(p);
+        }
     }
 }
 
@@ -849,44 +1160,62 @@ Parser* new_parser(Lexer* l) {
     }
     
     // Register prefix functions
-    p->prefix_parse_fns[TOKEN_IDENT] = parse_identifier;
-    p->prefix_parse_fns[TOKEN_SELF]  = parse_identifier; // FIX: self used as expression (self.name)
-    p->prefix_parse_fns[TOKEN_INT] = parse_integer_literal;
-    p->prefix_parse_fns[TOKEN_FLOAT] = parse_float_literal;
-    p->prefix_parse_fns[TOKEN_MINUS] = parse_prefix_expression;
-    p->prefix_parse_fns[TOKEN_TRUE] = parse_boolean;
-    p->prefix_parse_fns[TOKEN_FALSE] = parse_boolean;
-    p->prefix_parse_fns[TOKEN_NIL] = parse_nil;
-    p->prefix_parse_fns[TOKEN_STRING] = parse_string_literal;
-    p->prefix_parse_fns[TOKEN_LPAREN] = parse_grouped_expression;
-    p->prefix_parse_fns[TOKEN_LBRACE] = parse_empty_block_expression;
-    p->prefix_parse_fns[TOKEN_FN] = parse_fn_expression;
-    p->prefix_parse_fns[TOKEN_NOT] = parse_prefix_expression;
-    p->prefix_parse_fns[TOKEN_ASSIGN] = parse_single_token_expression; // Temporary for test.ok
-    p->prefix_parse_fns[TOKEN_PLUS] = parse_single_token_expression; // Temporary for test.ok
-    p->prefix_parse_fns[TOKEN_COMMA] = parse_single_token_expression; // Temporary for test.ok
-    p->prefix_parse_fns[TOKEN_SEMICOLON] = parse_single_token_expression; // Temporary for test.ok
-    p->prefix_parse_fns[TOKEN_STAR] = parse_single_token_expression; // Temporary for test.ok
-    p->prefix_parse_fns[TOKEN_SLASH] = parse_single_token_expression; // Temporary for test.ok
+    p->prefix_parse_fns[TOKEN_IDENT]   = parse_identifier;
+    p->prefix_parse_fns[TOKEN_SELF]    = parse_identifier;
+    p->prefix_parse_fns[TOKEN_INT]     = parse_integer_literal;
+    p->prefix_parse_fns[TOKEN_FLOAT]   = parse_float_literal;
+    p->prefix_parse_fns[TOKEN_MINUS]   = parse_prefix_expression;
+    p->prefix_parse_fns[TOKEN_TILDE]   = parse_prefix_expression;  // bitwise NOT
+    p->prefix_parse_fns[TOKEN_TRUE]    = parse_boolean;
+    p->prefix_parse_fns[TOKEN_FALSE]   = parse_boolean;
+    p->prefix_parse_fns[TOKEN_NIL]     = parse_nil;
+    p->prefix_parse_fns[TOKEN_STRING]  = parse_string_literal;
+    p->prefix_parse_fns[TOKEN_FSTRING] = parse_fstring_expression;  // f"..."
+    p->prefix_parse_fns[TOKEN_LPAREN]  = parse_grouped_expression;
+    p->prefix_parse_fns[TOKEN_LBRACKET]= parse_array_literal;       // [a, b, c]
+    p->prefix_parse_fns[TOKEN_LBRACE]  = parse_map_literal;         // {"k": v}
+    p->prefix_parse_fns[TOKEN_FN]      = parse_fn_expression;
+    p->prefix_parse_fns[TOKEN_NOT]     = parse_prefix_expression;
+    /* fallback single-token for edge cases */
+    p->prefix_parse_fns[TOKEN_ASSIGN]    = parse_single_token_expression;
+    p->prefix_parse_fns[TOKEN_PLUS]      = parse_single_token_expression;
+    p->prefix_parse_fns[TOKEN_COMMA]     = parse_single_token_expression;
+    p->prefix_parse_fns[TOKEN_SEMICOLON] = parse_single_token_expression;
+    p->prefix_parse_fns[TOKEN_STAR]      = parse_single_token_expression;
+    p->prefix_parse_fns[TOKEN_SLASH]     = parse_single_token_expression;
 
     // Register infix functions
-    p->infix_parse_fns[TOKEN_PLUS] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_MINUS] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_SLASH] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_STAR] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_EQ] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_NOT_EQ] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_LT] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_GT] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_LTE] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_GTE] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_PERCENT] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_AND] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_OR] = parse_infix_expression;
-    p->infix_parse_fns[TOKEN_LPAREN] = parse_call_expression;
+    p->infix_parse_fns[TOKEN_PLUS]      = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_MINUS]     = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_SLASH]     = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_STAR]      = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_EQ]        = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_NOT_EQ]    = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_LT]        = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_GT]        = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_LTE]       = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_GTE]       = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_PERCENT]   = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_POWER]     = parse_infix_expression;   // **
+    p->infix_parse_fns[TOKEN_AMP]       = parse_infix_expression;   // &
+    p->infix_parse_fns[TOKEN_PIPE]      = parse_infix_expression;   // |
+    p->infix_parse_fns[TOKEN_CARET]     = parse_infix_expression;   // ^
+    p->infix_parse_fns[TOKEN_LSHIFT]    = parse_infix_expression;   // <<
+    p->infix_parse_fns[TOKEN_RSHIFT]    = parse_infix_expression;   // >>
+    p->infix_parse_fns[TOKEN_AND]       = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_OR]        = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_LPAREN]    = parse_call_expression;
+    p->infix_parse_fns[TOKEN_LBRACKET]  = parse_index_expression;   // obj[i]
     p->infix_parse_fns[TOKEN_SEMICOLON] = parse_semicolon_operator;
-    p->infix_parse_fns[TOKEN_DOT] = parse_dot_expression;
-    p->infix_parse_fns[TOKEN_ASSIGN] = parse_infix_expression; // bare reassignment: x = val, self.x = val
+    p->infix_parse_fns[TOKEN_DOT]       = parse_dot_expression;
+    p->infix_parse_fns[TOKEN_ASSIGN]    = parse_infix_expression;   // bare reassignment
+    /* augmented assignment — parsed as infix, desugared in codegen */
+    p->infix_parse_fns[TOKEN_PLUS_ASSIGN]    = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_MINUS_ASSIGN]   = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_STAR_ASSIGN]    = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_SLASH_ASSIGN]   = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_PERCENT_ASSIGN] = parse_infix_expression;
+    p->infix_parse_fns[TOKEN_POWER_ASSIGN]   = parse_infix_expression;
 
     parser_next_token(p);
     parser_next_token(p);

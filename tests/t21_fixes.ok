@@ -1,0 +1,46 @@
+#  TEST 21 — All four bug fixes: ** power, str() on string, set lst[i]=val, +=
+#  Expected:
+#    8
+#    100
+#    1
+#    hello
+#    world
+#    done
+#    10
+#    99
+#    15
+
+# Fix 1: ** integer power (was calling float math.pow, now uses omni_int_pow)
+set a = 2 ** 3
+print(a)
+
+set b = 10 ** 2
+print(b)
+
+set c = 5 ** 0
+print(c)
+
+# Fix 2: str() on string should pass through, not call int_to_str on pointer
+set s = "hello"
+print(str(s))
+set t = "world"
+print(str(t))
+print("done")
+
+# Fix 3: augmented assignment +=
+set x = 10
+print(x)
+
+# Fix 4: set lst[i] = val
+use list
+set nums = list.new()
+list.push(nums, 10)
+list.push(nums, 20)
+list.push(nums, 30)
+set nums[0] = 99
+print(list.get(nums, 0))
+
+# Bonus: augmented += on a variable
+set y = 5
+y += 10
+print(y)

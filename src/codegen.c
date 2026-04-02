@@ -437,6 +437,18 @@ static const double OMNI_TAU = 6.28318530717958647692;
 
 __attribute__((noinline)) double  omni_itof(int64_t v) { return (double)v; }
 __attribute__((noinline)) int64_t omni_ftoi(double v)  { return (int64_t)v; }
+/* Integer power: base**exp — handles negative exp (returns 0 for negative int power) */
+__attribute__((noinline)) int64_t omni_int_pow(int64_t base, int64_t exp) {
+    if(exp<0)  return 0;
+    if(exp==0) return 1;
+    int64_t result=1;
+    while(exp>0){
+        if(exp&1) result*=base;
+        base*=base;
+        exp>>=1;
+    }
+    return result;
+}
 
 // ============================================================
 //  OS MODULE
@@ -518,6 +530,309 @@ __attribute__((noinline)) const char* omni_sys_platform(void)  { return "windows
 __attribute__((noinline)) const char* omni_sys_arch(void)      { return "x86_64"; }
 __attribute__((noinline)) const char* omni_sys_omni_ver(void)  { return "6.1.0"; }
 __attribute__((noinline)) int64_t     omni_sys_bits(void)      { return 64; }
+
+// ============================================================
+//  STR MODULE — extended functions
+// ============================================================
+__attribute__((noinline)) char* omni_str_upper(const char* s) {
+    if(!s) return (char*)"";
+    size_t n = strlen(s);
+    char* r = (char*)malloc(n+1);
+    for(size_t i=0;i<n;i++) r[i]=(char)toupper((unsigned char)s[i]);
+    r[n]=0; return r;
+}
+__attribute__((noinline)) char* omni_str_lower(const char* s) {
+    if(!s) return (char*)"";
+    size_t n = strlen(s);
+    char* r = (char*)malloc(n+1);
+    for(size_t i=0;i<n;i++) r[i]=(char)tolower((unsigned char)s[i]);
+    r[n]=0; return r;
+}
+__attribute__((noinline)) char* omni_str_trim(const char* s) {
+    if(!s) return (char*)"";
+    while(*s==' '||*s=='\t'||*s=='\r'||*s=='\n') s++;
+    size_t n=strlen(s);
+    while(n>0&&(s[n-1]==' '||s[n-1]=='\t'||s[n-1]=='\r'||s[n-1]=='\n')) n--;
+    char* r=(char*)malloc(n+1); memcpy(r,s,n); r[n]=0; return r;
+}
+__attribute__((noinline)) int64_t omni_str_contains(const char* s, const char* sub) {
+    if(!s||!sub) return 0;
+    return strstr(s,sub)?1:0;
+}
+__attribute__((noinline)) int64_t omni_str_starts(const char* s, const char* pre) {
+    if(!s||!pre) return 0;
+    size_t n=strlen(pre);
+    return strncmp(s,pre,n)==0?1:0;
+}
+__attribute__((noinline)) int64_t omni_str_ends(const char* s, const char* suf) {
+    if(!s||!suf) return 0;
+    size_t ls=strlen(s), lx=strlen(suf);
+    if(lx>ls) return 0;
+    return strcmp(s+ls-lx,suf)==0?1:0;
+}
+__attribute__((noinline)) char* omni_str_replace(const char* s, const char* old, const char* neu) {
+    if(!s||!old||!neu) return (char*)(s?s:"");
+    size_t sl=strlen(s),ol=strlen(old),nl=strlen(neu);
+    if(ol==0) return (char*)s;
+    // count occurrences
+    size_t cnt=0; const char* p=s;
+    while((p=strstr(p,old))){cnt++;p+=ol;}
+    size_t rlen=sl+cnt*(nl>ol?nl-ol:0)-(cnt*(ol>nl?ol-nl:0));
+    char* r=(char*)malloc(rlen+1); char* w=r; p=s;
+    const char* q;
+    while((q=strstr(p,old))){
+        size_t chunk=q-p; memcpy(w,p,chunk); w+=chunk;
+        memcpy(w,neu,nl); w+=nl; p=q+ol;
+    }
+    strcpy(w,p); return r;
+}
+__attribute__((noinline)) int64_t omni_str_find(const char* s, const char* sub) {
+    if(!s||!sub) return -1;
+    const char* p=strstr(s,sub);
+    return p?(int64_t)(p-s):-1;
+}
+__attribute__((noinline)) char* omni_str_repeat(const char* s, int64_t n) {
+    if(!s||n<=0) return (char*)"";
+    size_t l=strlen(s);
+    char* r=(char*)malloc(l*(size_t)n+1);
+    char* w=r;
+    for(int64_t i=0;i<n;i++){memcpy(w,s,l);w+=l;}
+    *w=0; return r;
+}
+__attribute__((noinline)) char* omni_str_reverse(const char* s) {
+    if(!s) return (char*)"";
+    size_t n=strlen(s);
+    char* r=(char*)malloc(n+1);
+    for(size_t i=0;i<n;i++) r[i]=s[n-1-i];
+    r[n]=0; return r;
+}
+__attribute__((noinline)) int64_t omni_str_count(const char* s, const char* sub) {
+    if(!s||!sub||strlen(sub)==0) return 0;
+    int64_t cnt=0; size_t sl=strlen(sub);
+    const char* p=s;
+    while((p=strstr(p,sub))){cnt++;p+=sl;}
+    return cnt;
+}
+__attribute__((noinline)) char* omni_str_int_to_str(int64_t v) {
+    char buf[32]; snprintf(buf,sizeof(buf),"%lld",(long long)v);
+    return strdup(buf);
+}
+__attribute__((noinline)) char* omni_str_pad_left(const char* s, int64_t width) {
+    if(!s) s="";
+    size_t l=strlen(s);
+    if((int64_t)l>=(int64_t)width) return (char*)s;
+    size_t pad=(size_t)width-l;
+    char* r=(char*)malloc((size_t)width+1);
+    memset(r,' ',pad); memcpy(r+pad,s,l); r[width]=0; return r;
+}
+__attribute__((noinline)) char* omni_str_pad_right(const char* s, int64_t width) {
+    if(!s) s="";
+    size_t l=strlen(s);
+    if((int64_t)l>=(int64_t)width) return (char*)s;
+    char* r=(char*)malloc((size_t)width+1);
+    memcpy(r,s,l); memset(r+l,' ',(size_t)width-l); r[width]=0; return r;
+}
+__attribute__((noinline)) int64_t omni_str_is_digit(const char* s) {
+    if(!s||!*s) return 0;
+    for(;*s;s++) if(!isdigit((unsigned char)*s)) return 0;
+    return 1;
+}
+__attribute__((noinline)) int64_t omni_str_is_alpha(const char* s) {
+    if(!s||!*s) return 0;
+    for(;*s;s++) if(!isalpha((unsigned char)*s)) return 0;
+    return 1;
+}
+
+// ============================================================
+//  OS MODULE — extended functions
+// ============================================================
+__attribute__((noinline)) int64_t omni_os_remove(const char* path) {
+    return DeleteFileA(path)?1:0;
+}
+__attribute__((noinline)) int64_t omni_os_rename(const char* from, const char* to) {
+    return MoveFileA(from,to)?1:0;
+}
+__attribute__((noinline)) int64_t omni_os_isfile(const char* path) {
+    DWORD a=GetFileAttributesA(path);
+    return (a!=INVALID_FILE_ATTRIBUTES&&!(a&FILE_ATTRIBUTE_DIRECTORY))?1:0;
+}
+__attribute__((noinline)) int64_t omni_os_isdir(const char* path) {
+    DWORD a=GetFileAttributesA(path);
+    return (a!=INVALID_FILE_ATTRIBUTES&&(a&FILE_ATTRIBUTE_DIRECTORY))?1:0;
+}
+__attribute__((noinline)) char* omni_os_abspath(const char* path) {
+    char* r=(char*)malloc(MAX_PATH);
+    if(!GetFullPathNameA(path,MAX_PATH,r,NULL)){r[0]=0;}
+    return r;
+}
+__attribute__((noinline)) char* omni_os_basename(const char* path) {
+    if(!path) return (char*)"";
+    const char* p=path+strlen(path);
+    while(p>path&&*(p-1)!='/'&&*(p-1)!='\\') p--;
+    return strdup(p);
+}
+__attribute__((noinline)) char* omni_os_dirname(const char* path) {
+    if(!path) return (char*)"";
+    size_t n=strlen(path);
+    char* r=strdup(path);
+    char* p=r+n;
+    while(p>r&&*(p-1)!='/'&&*(p-1)!='\\') p--;
+    if(p>r) {*(p-1)=0;} else {r[0]='.';r[1]=0;}
+    return r;
+}
+__attribute__((noinline)) char* omni_os_join(const char* a, const char* b) {
+    if(!a) a=""; if(!b) b="";
+    size_t la=strlen(a),lb=strlen(b);
+    char* r=(char*)malloc(la+lb+2);
+    memcpy(r,a,la);
+    if(la>0&&a[la-1]!='/'&&a[la-1]!='\\'){r[la]='\\';la++;}
+    memcpy(r+la,b,lb); r[la+lb]=0;
+    return r;
+}
+
+// ============================================================
+//  IO MODULE — extended functions
+// ============================================================
+__attribute__((noinline)) int64_t omni_io_copy(const char* src, const char* dst) {
+    return CopyFileA(src,dst,FALSE)?1:0;
+}
+__attribute__((noinline)) char* omni_io_readline(const char* path, int64_t linenum) {
+    /* read line N (0-indexed) from file */
+    FILE* f=fopen(path,"r"); if(!f) return (char*)"";
+    char buf[4096]; int64_t cur=0;
+    while(fgets(buf,sizeof(buf),f)){
+        if(cur==linenum){
+            size_t n=strlen(buf);
+            if(n>0&&buf[n-1]=='\n') buf[n-1]=0;
+            fclose(f); return strdup(buf);
+        }
+        cur++;
+    }
+    fclose(f); return (char*)"";
+}
+__attribute__((noinline)) int64_t omni_io_line_count(const char* path) {
+    FILE* f=fopen(path,"r"); if(!f) return 0;
+    int64_t cnt=0; int c;
+    while((c=fgetc(f))!=EOF) if(c=='\n') cnt++;
+    fclose(f); return cnt;
+}
+__attribute__((noinline)) int64_t omni_io_rename(const char* from, const char* to) {
+    return MoveFileA(from,to)?1:0;
+}
+
+// ============================================================
+//  SYS MODULE — extended functions
+// ============================================================
+__attribute__((noinline)) int64_t omni_sys_exit(int64_t code) { exit((int)code); return 0; }
+__attribute__((noinline)) char* omni_sys_input(void) {
+    omni_io_init();
+    char buf[4096]; DWORD r=0;
+    ReadFile(GetStdHandle(STD_INPUT_HANDLE),buf,sizeof(buf)-1,&r,NULL);
+    buf[r]=0;
+    size_t n=strlen(buf);
+    while(n>0&&(buf[n-1]=='\n'||buf[n-1]=='\r')) buf[--n]=0;
+    return strdup(buf);
+}
+__attribute__((noinline)) int64_t omni_sys_memory(void) {
+    MEMORYSTATUSEX ms; ms.dwLength=sizeof(ms);
+    GlobalMemoryStatusEx(&ms);
+    return (int64_t)(ms.ullTotalPhys/1024/1024); /* MB */
+}
+
+// ============================================================
+//  LIST MODULE — extended functions
+// ============================================================
+__attribute__((noinline)) void omni_list_reverse(int64_t lst_ptr) {
+    if(!lst_ptr) return;
+    OmniList* l=(OmniList*)lst_ptr;
+    int64_t lo=0,hi=l->length-1;
+    while(lo<hi){int64_t t=l->data[lo];l->data[lo]=l->data[hi];l->data[hi]=t;lo++;hi--;}
+}
+__attribute__((noinline)) void omni_list_sort(int64_t lst_ptr) {
+    if(!lst_ptr) return;
+    OmniList* l=(OmniList*)lst_ptr;
+    /* simple insertion sort — good enough for typical list sizes */
+    for(int64_t i=1;i<l->length;i++){
+        int64_t key=l->data[i],j=i-1;
+        while(j>=0&&l->data[j]>key){l->data[j+1]=l->data[j];j--;}
+        l->data[j+1]=key;
+    }
+}
+__attribute__((noinline)) void omni_list_clear(int64_t lst_ptr) {
+    if(!lst_ptr) return;
+    OmniList* l=(OmniList*)lst_ptr;
+    l->length=0;
+}
+__attribute__((noinline)) int64_t omni_list_copy(int64_t lst_ptr) {
+    if(!lst_ptr) return 0;
+    OmniList* src=(OmniList*)lst_ptr;
+    size_t sz=sizeof(OmniList)+(size_t)(src->capacity-1)*sizeof(int64_t);
+    OmniList* dst=(OmniList*)malloc(sz);
+    memcpy(dst,src,sz);
+    return (int64_t)dst;
+}
+__attribute__((noinline)) int64_t omni_list_index(int64_t lst_ptr, int64_t val) {
+    if(!lst_ptr) return -1;
+    OmniList* l=(OmniList*)lst_ptr;
+    for(int64_t i=0;i<l->length;i++) if(l->data[i]==val) return i;
+    return -1;
+}
+__attribute__((noinline)) int64_t omni_list_insert(int64_t lst_ptr, int64_t idx, int64_t val) {
+    /* first grow via push to ensure capacity */
+    lst_ptr=omni_list_push(lst_ptr,val);
+    OmniList* l=(OmniList*)lst_ptr;
+    if(idx<0) idx=0;
+    if(idx>=l->length-1) return lst_ptr; /* already at end */
+    /* shift right */
+    for(int64_t i=l->length-1;i>idx;i--) l->data[i]=l->data[i-1];
+    l->data[idx]=val;
+    return lst_ptr;
+}
+__attribute__((noinline)) int64_t omni_list_remove(int64_t lst_ptr, int64_t val) {
+    if(!lst_ptr) return lst_ptr;
+    OmniList* l=(OmniList*)lst_ptr;
+    for(int64_t i=0;i<l->length;i++){
+        if(l->data[i]==val){
+            for(int64_t j=i;j<l->length-1;j++) l->data[j]=l->data[j+1];
+            l->length--; return lst_ptr;
+        }
+    }
+    return lst_ptr;
+}
+__attribute__((noinline)) int64_t omni_list_min(int64_t lst_ptr) {
+    if(!lst_ptr) return 0;
+    OmniList* l=(OmniList*)lst_ptr;
+    if(l->length==0) return 0;
+    int64_t m=l->data[0];
+    for(int64_t i=1;i<l->length;i++) if(l->data[i]<m) m=l->data[i];
+    return m;
+}
+__attribute__((noinline)) int64_t omni_list_max(int64_t lst_ptr) {
+    if(!lst_ptr) return 0;
+    OmniList* l=(OmniList*)lst_ptr;
+    if(l->length==0) return 0;
+    int64_t m=l->data[0];
+    for(int64_t i=1;i<l->length;i++) if(l->data[i]>m) m=l->data[i];
+    return m;
+}
+__attribute__((noinline)) int64_t omni_list_sum(int64_t lst_ptr) {
+    if(!lst_ptr) return 0;
+    OmniList* l=(OmniList*)lst_ptr;
+    int64_t s=0;
+    for(int64_t i=0;i<l->length;i++) s+=l->data[i];
+    return s;
+}
+__attribute__((noinline)) int64_t omni_list_concat(int64_t a_ptr, int64_t b_ptr) {
+    /* returns new list = a + b */
+    int64_t r=omni_list_new();
+    if(!a_ptr||!b_ptr) return r;
+    OmniList* a=(OmniList*)a_ptr;
+    OmniList* b=(OmniList*)b_ptr;
+    for(int64_t i=0;i<a->length;i++) r=omni_list_push(r,a->data[i]);
+    for(int64_t i=0;i<b->length;i++) r=omni_list_push(r,b->data[i]);
+    return r;
+}
+
 
 // ============================================================
 //  LIST MODULE
@@ -651,8 +966,15 @@ static void* volatile g_fn_math_min       = (void*)omni_math_min_i;
 static void* volatile g_fn_math_max       = (void*)omni_math_max_i;
 static void* volatile g_fn_math_gcd       = (void*)omni_math_gcd;
 static void* volatile g_fn_math_clamp     = (void*)omni_math_clamp;
+static void* volatile g_fn_math_exp       = (void*)omni_math_exp;
+static void* volatile g_fn_math_exp2      = (void*)omni_math_exp2;
+static void* volatile g_fn_math_tanh      = (void*)omni_math_tanh;
+static void* volatile g_fn_math_atan      = (void*)omni_math_atan;
+static void* volatile g_fn_math_atan2     = (void*)omni_math_atan2;
+static void* volatile g_fn_math_cbrt      = (void*)omni_math_cbrt;
 static void* volatile g_fn_itof           = (void*)omni_itof;
 static void* volatile g_fn_ftoi           = (void*)omni_ftoi;
+static void* volatile g_fn_int_pow        = (void*)omni_int_pow;
 static void* volatile g_fn_os_exit        = (void*)omni_os_exit;
 static void* volatile g_fn_os_getenv      = (void*)omni_os_getenv;
 static void* volatile g_fn_os_platform    = (void*)omni_os_platform;
@@ -680,6 +1002,53 @@ static void* volatile g_fn_list_len       = (void*)omni_list_len;
 static void* volatile g_fn_list_free      = (void*)omni_list_free;
 static void* volatile g_fn_list_contains  = (void*)omni_list_contains;
 static void* volatile g_fn_list_print     = (void*)omni_list_print;
+
+// str extended
+static void* volatile g_fn_str_upper      = (void*)omni_str_upper;
+static void* volatile g_fn_str_lower      = (void*)omni_str_lower;
+static void* volatile g_fn_str_trim       = (void*)omni_str_trim;
+static void* volatile g_fn_str_contains   = (void*)omni_str_contains;
+static void* volatile g_fn_str_starts     = (void*)omni_str_starts;
+static void* volatile g_fn_str_ends       = (void*)omni_str_ends;
+static void* volatile g_fn_str_replace    = (void*)omni_str_replace;
+static void* volatile g_fn_str_find       = (void*)omni_str_find;
+static void* volatile g_fn_str_repeat     = (void*)omni_str_repeat;
+static void* volatile g_fn_str_reverse_s  = (void*)omni_str_reverse;
+static void* volatile g_fn_str_count      = (void*)omni_str_count;
+static void* volatile g_fn_str_pad_left   = (void*)omni_str_pad_left;
+static void* volatile g_fn_str_pad_right  = (void*)omni_str_pad_right;
+static void* volatile g_fn_str_is_digit   = (void*)omni_str_is_digit;
+static void* volatile g_fn_str_is_alpha   = (void*)omni_str_is_alpha;
+// os extended
+static void* volatile g_fn_os_remove      = (void*)omni_os_remove;
+static void* volatile g_fn_os_rename      = (void*)omni_os_rename;
+static void* volatile g_fn_os_isfile      = (void*)omni_os_isfile;
+static void* volatile g_fn_os_isdir       = (void*)omni_os_isdir;
+static void* volatile g_fn_os_abspath     = (void*)omni_os_abspath;
+static void* volatile g_fn_os_basename    = (void*)omni_os_basename;
+static void* volatile g_fn_os_dirname     = (void*)omni_os_dirname;
+static void* volatile g_fn_os_join        = (void*)omni_os_join;
+// io extended
+static void* volatile g_fn_io_copy        = (void*)omni_io_copy;
+static void* volatile g_fn_io_readline    = (void*)omni_io_readline;
+static void* volatile g_fn_io_line_count  = (void*)omni_io_line_count;
+static void* volatile g_fn_io_rename      = (void*)omni_io_rename;
+// sys extended
+static void* volatile g_fn_sys_exit_fn    = (void*)omni_sys_exit;
+static void* volatile g_fn_sys_input_fn   = (void*)omni_sys_input;
+static void* volatile g_fn_sys_memory     = (void*)omni_sys_memory;
+// list extended
+static void* volatile g_fn_list_reverse   = (void*)omni_list_reverse;
+static void* volatile g_fn_list_sort      = (void*)omni_list_sort;
+static void* volatile g_fn_list_clear     = (void*)omni_list_clear;
+static void* volatile g_fn_list_copy_fn   = (void*)omni_list_copy;
+static void* volatile g_fn_list_index     = (void*)omni_list_index;
+static void* volatile g_fn_list_insert    = (void*)omni_list_insert;
+static void* volatile g_fn_list_remove_v  = (void*)omni_list_remove;
+static void* volatile g_fn_list_min       = (void*)omni_list_min;
+static void* volatile g_fn_list_max       = (void*)omni_list_max;
+static void* volatile g_fn_list_sum       = (void*)omni_list_sum;
+static void* volatile g_fn_list_concat    = (void*)omni_list_concat;
 
 // ============================================================
 //  AVX2/FMA3 SIMD RUNTIME KERNELS
@@ -1307,6 +1676,7 @@ static void emit_load_r9(CodeBuf*b,int off) {emit_u8(b,REX_WR);emit_u8(b,0x8B);e
 
 static void emit_mov_rcx_rax(CodeBuf*b){emit_u8(b,REX_W);emit_u8(b,0x89);emit_u8(b,0xC1);}
 static void emit_mov_rdx_rax(CodeBuf*b){emit_u8(b,REX_W);emit_u8(b,0x89);emit_u8(b,0xC2);}
+static void emit_mov_rdx_rcx(CodeBuf*b){emit_u8(b,REX_W);emit_u8(b,0x89);emit_u8(b,0xCA);}  /* MOV RDX,RCX */
 static void emit_mov_r11_rax(CodeBuf*b){emit_u8(b,0x49);emit_u8(b,0x89);emit_u8(b,0xC3);}
 static void emit_mov_rax_r11(CodeBuf*b){emit_u8(b,0x49);emit_u8(b,0x8B);emit_u8(b,0xC3);}  /* MOV RAX,R11: REX.WB 8B /r mod=11 reg=0(RAX) r/m=3+B=R11 */
 static void emit_mov_rax_r14(CodeBuf*b){emit_u8(b,REX_WB);emit_u8(b,0x8B);emit_u8(b,0xC6);}
@@ -1935,6 +2305,44 @@ static void cg_infix(CodeGen*cg,AST_Expression_Infix*node){
     else if(strcmp(op,">") ==0){emit_cmp_rax_rcx(&cg->code);emit_setcc_rax(&cg->code,0x9F);}
     else if(strcmp(op,"<=")==0){emit_cmp_rax_rcx(&cg->code);emit_setcc_rax(&cg->code,0x9E);}
     else if(strcmp(op,">=")==0){emit_cmp_rax_rcx(&cg->code);emit_setcc_rax(&cg->code,0x9D);}
+    /* ── bitwise operators ── */
+    else if(strcmp(op,"&")==0){emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0x21);emit_u8(&cg->code,0xC8);}  // AND rax,rcx
+    else if(strcmp(op,"|")==0){emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0x09);emit_u8(&cg->code,0xC8);}  // OR  rax,rcx
+    else if(strcmp(op,"^")==0){emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0x31);emit_u8(&cg->code,0xC8);}  // XOR rax,rcx
+    /* shifts: rcx holds rhs, move to CL for shift */
+    else if(strcmp(op,"<<")==0){
+        /* MOV RCX,RCX already fine; need count in CL */
+        /* XCHG RAX,RCX so we shift RAX (left) by CL (right count) */
+        emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0x91); /* XCHG rax,rcx */
+        /* SAL rax, cl: REX.W 0xD3 /4 */
+        emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0xD3);emit_u8(&cg->code,0xE0);
+    }
+    else if(strcmp(op,">>")==0){
+        emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0x91); /* XCHG rax,rcx */
+        /* SAR rax, cl: REX.W 0xD3 /7 */
+        emit_u8(&cg->code,REX_W);emit_u8(&cg->code,0xD3);emit_u8(&cg->code,0xF8);
+    }
+    /* ── ** power: integer exponentiation via omni_int_pow ── */
+    /* rax=base (lhs), rcx=exp (rhs) — both integer registers at do_op */
+    else if(strcmp(op,"**")==0){
+        emit_mov_rdx_rcx(&cg->code);  /* rdx = exp  */
+        emit_mov_rcx_rax(&cg->code);  /* rcx = base */
+        cg_call_extern(cg,g_fn_int_pow);
+    }
+    /* ── augmented assignment: x += e  parsed as INFIX with op "+="  ── */
+    /* These arrive here only when the lhs is NOT a simple identifier     */
+    /* (simple-ident case is caught by cg_set_statement optimiser).       */
+    /* Fall through: treat as the base operator, result in rax.           */
+    else if(strcmp(op,"+=")==0) emit_add_rax_rcx(&cg->code);
+    else if(strcmp(op,"-=")==0) emit_sub_rax_rcx(&cg->code);
+    else if(strcmp(op,"*=")==0) emit_imul_rax_rcx(&cg->code);
+    else if(strcmp(op,"/=")==0) emit_idiv_rcx(&cg->code);
+    else if(strcmp(op,"%=")==0) emit_mod_rax_rcx(&cg->code);
+    else if(strcmp(op,"**=")==0){
+        emit_mov_rdx_rcx(&cg->code);
+        emit_mov_rcx_rax(&cg->code);
+        cg_call_extern(cg,g_fn_int_pow);
+    }
     else omni_error_nopos("CodeGen Error","unknown operator '%s'",op);
 }
 
@@ -1994,7 +2402,14 @@ static OmniType infer_type(CodeGen*cg,AST_Expression*expr){
                    strcmp(ma->member,"log10")==0||strcmp(ma->member,"pi")==0||
                    strcmp(ma->member,"e")==0||strcmp(ma->member,"tau")==0||
                    strcmp(ma->member,"itof")==0||strcmp(ma->member,"min_f")==0||
-                   strcmp(ma->member,"max_f")==0)return OMNI_TYPE_FLOAT;
+                   strcmp(ma->member,"max_f")==0||
+                   strcmp(ma->member,"exp")==0||strcmp(ma->member,"exp2")==0||
+                   strcmp(ma->member,"tanh")==0||strcmp(ma->member,"sinh")==0||
+                   strcmp(ma->member,"cosh")==0||strcmp(ma->member,"atan")==0||
+                   strcmp(ma->member,"atan2")==0||strcmp(ma->member,"asin")==0||
+                   strcmp(ma->member,"acos")==0||strcmp(ma->member,"cbrt")==0||
+                   strcmp(ma->member,"hypot")==0||strcmp(ma->member,"abs_f")==0)
+                   return OMNI_TYPE_FLOAT;
                 return OMNI_TYPE_INT;
             }
             return OMNI_TYPE_INT;
@@ -2036,7 +2451,13 @@ static void cg_call_int(CodeGen*cg,AST_Expression_Call*node){
 }
 static void cg_call_str(CodeGen*cg,AST_Expression_Call*node){
     if(node->argument_count!=1){fprintf(stderr,"CodeGen Error: str() takes 1 argument\n");exit(1);}
-    cg_expr(cg,node->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_int_to_str);
+    OmniType t=infer_type(cg,node->arguments[0]);
+    cg_expr(cg,node->arguments[0]);
+    /* str(x): if already a string, pass through unchanged (RAX already = char* ptr) */
+    if(t==OMNI_TYPE_STR||t==OMNI_TYPE_UNKNOWN) return;  /* already a string pointer */
+    emit_mov_rcx_rax(&cg->code);
+    if(t==OMNI_TYPE_FLOAT) cg_call_extern(cg,g_fn_float_to_str);
+    else                   cg_call_extern(cg,g_fn_int_to_str);  /* int, bool */
 }
 static void cg_call_range(CodeGen*cg,AST_Expression_Call*node){
     if(node->argument_count<1){fprintf(stderr,"CodeGen Error: range() needs 1+ argument\n");exit(1);}
@@ -2317,7 +2738,16 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
             emit_load_rcx(&cg->code,s0);emit_load_rdx(&cg->code,s1);emit_load_r8(&cg->code,s2);
             cg_call_extern(cg,g_fn_math_clamp);
             cg->scope->next_offset-=24;return;}
-        #define MATH_1F(meth,fn) if(strcmp(method,meth)==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,fn);return;}
+        /* MATH_1F: float-returning 1-arg math functions.
+           Windows x64 ABI: floats/doubles are passed in XMM0 and returned in XMM0.
+           We convert the integer in RAX to double in XMM0 before the call,
+           then move the result XMM0→RAX so the rest of codegen sees the value. */
+        #define MATH_1F(meth,fn) if(strcmp(method,meth)==0&&argc==1){\
+            cg_expr(cg,call->arguments[0]);\
+            emit_int_to_float(&cg->code); /* CVTSI2SD xmm0,rax: int64→double */\
+            cg_call_extern(cg,fn);\
+            emit_xmm0_to_rax(&cg->code);  /* MOVQ rax,xmm0: double result→RAX */\
+            return;}
         MATH_1F("sqrt",  g_fn_math_sqrt)
         MATH_1F("sin",   g_fn_math_sin)
         MATH_1F("cos",   g_fn_math_cos)
@@ -2328,14 +2758,35 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
         MATH_1F("floor", g_fn_math_floor)
         MATH_1F("ceil",  g_fn_math_ceil)
         MATH_1F("round", g_fn_math_round)
-        MATH_1F("itof",  g_fn_itof)
-        MATH_1F("ftoi",  g_fn_ftoi)
+        MATH_1F("exp",   g_fn_math_exp)
+        MATH_1F("exp2",  g_fn_math_exp2)
+        MATH_1F("tanh",  g_fn_math_tanh)
+        MATH_1F("atan",  g_fn_math_atan)
+        MATH_1F("cbrt",  g_fn_math_cbrt)
+        /* itof/ftoi need special handling — bypass CVTSI2SD */
+        if(strcmp(method,"itof")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_int_to_float(&cg->code);emit_xmm0_to_rax(&cg->code);return;} /* direct CVTSI2SD, no call */
+        if(strcmp(method,"ftoi")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_rax_to_xmm0(&cg->code);emit_float_to_int(&cg->code);return;} /* direct CVTTSD2SI, no call */
         #undef MATH_1F
+        if(strcmp(method,"atan2")==0&&argc==2){
+            /* atan2(y,x): pass y→XMM0, x→XMM1 (Windows x64 float ABI) */
+            int s0=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s1=cg->scope->next_offset;cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            cg_expr(cg,call->arguments[0]);emit_int_to_float(&cg->code);emit_store_xmm0(&cg->code,s0);
+            cg_expr(cg,call->arguments[1]);emit_int_to_float(&cg->code);emit_store_xmm0(&cg->code,s1);
+            emit_load_xmm0(&cg->code,s0);emit_load_xmm1(&cg->code,s1);
+            cg_call_extern(cg,g_fn_math_atan2);emit_xmm0_to_rax(&cg->code);
+            cg->scope->next_offset-=16;return;}
         if(strcmp(method,"pow")==0&&argc==2){
-            int s=cg->scope->next_offset;cg->scope->next_offset+=8;if(s>cg->stack_size)cg->stack_size=s;
-            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,s);
-            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,s);
-            cg_call_extern(cg,g_fn_math_pow);cg->scope->next_offset-=8;return;}
+            /* pow(base,exp): pass base→XMM0, exp→XMM1 */
+            int s0=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s1=cg->scope->next_offset;cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            cg_expr(cg,call->arguments[0]);emit_int_to_float(&cg->code);emit_store_xmm0(&cg->code,s0);
+            cg_expr(cg,call->arguments[1]);emit_int_to_float(&cg->code);emit_store_xmm0(&cg->code,s1);
+            emit_load_xmm0(&cg->code,s0);emit_load_xmm1(&cg->code,s1);
+            cg_call_extern(cg,g_fn_math_pow);emit_xmm0_to_rax(&cg->code);
+            cg->scope->next_offset-=16;return;}
         fprintf(stderr,"CodeGen Error: unknown math.%s()\n",method);exit(1);
     }
 
@@ -2348,6 +2799,24 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
         if(strcmp(method,"getenv")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_os_getenv);return;}
         if(strcmp(method,"exists")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_os_exists);return;}
         if(strcmp(method,"mkdir")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_os_mkdir);return;}
+        /* os extended — 1 arg */
+        #define OS_1(meth,fn) if(strcmp(method,meth)==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,fn);return;}
+        OS_1("remove",   g_fn_os_remove)
+        OS_1("isfile",   g_fn_os_isfile)
+        OS_1("isdir",    g_fn_os_isdir)
+        OS_1("abspath",  g_fn_os_abspath)
+        OS_1("basename", g_fn_os_basename)
+        OS_1("dirname",  g_fn_os_dirname)
+        #undef OS_1
+        /* os.rename(from,to), os.join(a,b) — 2 args */
+        #define OS_2(meth,fn) if(strcmp(method,meth)==0&&argc==2){\
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;\
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);\
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);\
+            cg_call_extern(cg,fn);cg->scope->next_offset-=8;return;}
+        OS_2("rename", g_fn_os_rename)
+        OS_2("join",   g_fn_os_join)
+        #undef OS_2
         fprintf(stderr,"CodeGen Error: unknown os.%s()\n",method);exit(1);
     }
 
@@ -2366,6 +2835,23 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
             cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,s);
             cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,s);
             cg_call_extern(cg,g_fn_io_append);cg->scope->next_offset-=8;return;}
+        /* io extended */
+        if(strcmp(method,"copy")==0&&argc==2){
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);
+            cg_call_extern(cg,g_fn_io_copy);cg->scope->next_offset-=8;return;}
+        if(strcmp(method,"rename")==0&&argc==2){
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);
+            cg_call_extern(cg,g_fn_io_rename);cg->scope->next_offset-=8;return;}
+        if(strcmp(method,"line_count")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_io_line_count);return;}
+        if(strcmp(method,"readline")==0&&argc==2){
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);
+            cg_call_extern(cg,g_fn_io_readline);cg->scope->next_offset-=8;return;}
         fprintf(stderr,"CodeGen Error: unknown io.%s()\n",method);exit(1);
     }
 
@@ -2375,6 +2861,10 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
         if(strcmp(method,"arch")==0)     {cg_call_extern(cg,g_fn_sys_arch);return;}
         if(strcmp(method,"omni_ver")==0) {cg_call_extern(cg,g_fn_sys_omni_ver);return;}
         if(strcmp(method,"bits")==0)     {cg_call_extern(cg,g_fn_sys_bits);return;}
+        if(strcmp(method,"exit")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_sys_exit_fn);return;}
+        if(strcmp(method,"exit")==0&&argc==0){emit_mov_rcx_imm64(&cg->code,0);cg_call_extern(cg,g_fn_sys_exit_fn);return;}
+        if(strcmp(method,"input")==0&&argc==0){cg_call_extern(cg,g_fn_sys_input_fn);return;}
+        if(strcmp(method,"memory")==0&&argc==0){cg_call_extern(cg,g_fn_sys_memory);return;}
         fprintf(stderr,"CodeGen Error: unknown sys.%s()\n",method);exit(1);
     }
 
@@ -2419,6 +2909,44 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
             cg_call_extern(cg,g_fn_list_set);emit_xor_rax_rax(&cg->code);
             cg->scope->next_offset-=24;return;}
         if(strcmp(method,"print")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_list_print);return;}
+        /* list extended — 1 arg */
+        #define LIST_1(meth,fn) if(strcmp(method,meth)==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,fn);return;}
+        LIST_1("reverse", g_fn_list_reverse)
+        LIST_1("sort",    g_fn_list_sort)
+        LIST_1("clear",   g_fn_list_clear)
+        LIST_1("copy",    g_fn_list_copy_fn)
+        LIST_1("min",     g_fn_list_min)
+        LIST_1("max",     g_fn_list_max)
+        LIST_1("sum",     g_fn_list_sum)
+        #undef LIST_1
+        /* list 2-arg */
+        #define LIST_2(meth,fn) if(strcmp(method,meth)==0&&argc==2){\
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;\
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);\
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);\
+            cg_call_extern(cg,fn);cg->scope->next_offset-=8;return;}
+        LIST_2("index",   g_fn_list_index)
+        LIST_2("remove",  g_fn_list_remove_v)
+        LIST_2("concat",  g_fn_list_concat)
+        #undef LIST_2
+        /* list.insert(lst,idx,val) — 3 args */
+        if(strcmp(method,"insert")==0&&argc==3){
+            int s0=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s1=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s2=cg->scope->next_offset;cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,s0);
+            cg_expr(cg,call->arguments[1]);emit_store_rax(&cg->code,s1);
+            cg_expr(cg,call->arguments[2]);emit_store_rax(&cg->code,s2);
+            emit_load_rcx(&cg->code,s0);emit_load_rdx(&cg->code,s1);emit_load_r8(&cg->code,s2);
+            cg_call_extern(cg,g_fn_list_insert);
+            /* update variable pointer like push does */
+            if(call->arguments[0]&&call->arguments[0]->type==IDENTIFIER){
+                const char*lst_var=((AST_Expression_Identifier*)call->arguments[0])->value;
+                Symbol*lst_sym=scope_get(cg->scope,lst_var);
+                if(lst_sym) emit_store_rax(&cg->code,lst_sym->stack_offset);
+            }
+            cg->scope->next_offset-=24;return;}
         fprintf(stderr,"CodeGen Error: unknown list.%s()\n",method);exit(1);
     }
 
@@ -2446,6 +2974,42 @@ static void cg_module_call(CodeGen*cg,AST_Expression_Call*call,const char*ns,con
             cg_call_extern(cg,g_fn_str_slice);cg->scope->next_offset-=24;return;}
         if(strcmp(method,"toint")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_str_to_int);return;}
         if(strcmp(method,"fromint")==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_int_to_str);return;}
+        /* str extended — 0/1 arg */
+        #define STR_1(meth,fn) if(strcmp(method,meth)==0&&argc==1){cg_expr(cg,call->arguments[0]);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,fn);return;}
+        STR_1("upper",    g_fn_str_upper)
+        STR_1("lower",    g_fn_str_lower)
+        STR_1("trim",     g_fn_str_trim)
+        STR_1("reverse",  g_fn_str_reverse_s)
+        STR_1("is_digit", g_fn_str_is_digit)
+        STR_1("is_alpha", g_fn_str_is_alpha)
+        #undef STR_1
+        /* str 2-arg */
+        #define STR_2(meth,fn) if(strcmp(method,meth)==0&&argc==2){\
+            int _s=cg->scope->next_offset;cg->scope->next_offset+=8;if(_s>cg->stack_size)cg->stack_size=_s;\
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,_s);\
+            cg_expr(cg,call->arguments[1]);emit_mov_rdx_rax(&cg->code);emit_load_rcx(&cg->code,_s);\
+            cg_call_extern(cg,fn);cg->scope->next_offset-=8;return;}
+        STR_2("contains",   g_fn_str_contains)
+        STR_2("starts_with",g_fn_str_starts)
+        STR_2("ends_with",  g_fn_str_ends)
+        STR_2("find",       g_fn_str_find)
+        STR_2("count",      g_fn_str_count)
+        STR_2("repeat",     g_fn_str_repeat)
+        STR_2("pad_left",   g_fn_str_pad_left)
+        STR_2("pad_right",  g_fn_str_pad_right)
+        #undef STR_2
+        /* str.replace(s,old,new) — 3 args */
+        if(strcmp(method,"replace")==0&&argc==3){
+            int s0=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s1=cg->scope->next_offset;cg->scope->next_offset+=8;
+            int s2=cg->scope->next_offset;cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            cg_expr(cg,call->arguments[0]);emit_store_rax(&cg->code,s0);
+            cg_expr(cg,call->arguments[1]);emit_store_rax(&cg->code,s1);
+            cg_expr(cg,call->arguments[2]);emit_store_rax(&cg->code,s2);
+            emit_load_rcx(&cg->code,s0);emit_load_rdx(&cg->code,s1);emit_load_r8(&cg->code,s2);
+            cg_call_extern(cg,g_fn_str_replace);
+            cg->scope->next_offset-=24;return;}
         fprintf(stderr,"CodeGen Error: unknown str.%s()\n",method);exit(1);
     }
 
@@ -2927,6 +3491,69 @@ static void cg_expr(CodeGen*cg,AST_Expression*expr){
             AST_Expression_Empty*e=(AST_Expression_Empty*)expr;
             if(e->base.token.type==TOKEN_BREAK){cg_break_statement(cg);break;}
             if(e->base.token.type==TOKEN_CONTINUE){cg_continue_statement(cg);break;}
+            break;
+        }
+        /* ── Phase 4: array/map/index ───────────────────────────────── */
+        case ARRAY_LITERAL:{
+            /* [a, b, c]  →  list.new() + list.push() for each element */
+            AST_Expression_ArrayLiteral*al=(AST_Expression_ArrayLiteral*)expr;
+            /* call list.new() → RAX = list ptr */
+            emit_mov_rcx_imm64(&cg->code,0);
+            cg_call_extern(cg,g_fn_list_new);
+            /* store list ptr in a temp slot */
+            int lslot=cg->scope->next_offset; cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            emit_store_rax(&cg->code,lslot);
+            /* push each element */
+            for(int _i=0;_i<al->element_count;_i++){
+                /* arg1 = list ptr */
+                emit_load_rcx(&cg->code,lslot);
+                /* arg2 = element value */
+                cg_expr(cg,al->elements[_i]);
+                emit_mov_rdx_rax(&cg->code);
+                cg_call_extern(cg,g_fn_list_push);
+            }
+            /* result = list ptr */
+            emit_load_rax(&cg->code,lslot);
+            cg->scope->next_offset-=8;
+            break;
+        }
+        case MAP_LITERAL:{
+            /* {"k":v,...}  →  list.new() (flat key/value pairs) */
+            AST_Expression_MapLiteral*ml=(AST_Expression_MapLiteral*)expr;
+            emit_mov_rcx_imm64(&cg->code,0);
+            cg_call_extern(cg,g_fn_list_new);
+            int mslot=cg->scope->next_offset; cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            emit_store_rax(&cg->code,mslot);
+            for(int _i=0;_i<ml->entry_count;_i++){
+                /* push key */
+                emit_load_rcx(&cg->code,mslot);
+                cg_expr(cg,ml->entries[_i]->key);
+                emit_mov_rdx_rax(&cg->code);
+                cg_call_extern(cg,g_fn_list_push);
+                /* push value */
+                emit_load_rcx(&cg->code,mslot);
+                cg_expr(cg,ml->entries[_i]->value);
+                emit_mov_rdx_rax(&cg->code);
+                cg_call_extern(cg,g_fn_list_push);
+            }
+            emit_load_rax(&cg->code,mslot);
+            cg->scope->next_offset-=8;
+            break;
+        }
+        case INDEX_EXPRESSION:{
+            /* obj[i]  →  list.get(obj, i) */
+            AST_Expression_Index*ix=(AST_Expression_Index*)expr;
+            int lslot=cg->scope->next_offset; cg->scope->next_offset+=8;
+            if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+            cg_expr(cg,ix->left);
+            emit_store_rax(&cg->code,lslot);
+            cg_expr(cg,ix->index);
+            emit_mov_rdx_rax(&cg->code);
+            emit_load_rcx(&cg->code,lslot);
+            cg_call_extern(cg,g_fn_list_get);
+            cg->scope->next_offset-=8;
             break;
         }
         default:fprintf(stderr,"CodeGen Error: unsupported expression type %d\n",expr->type);exit(1);
@@ -3547,6 +4174,92 @@ static void cg_for_range(CodeGen*cg,AST_Statement_For*stmt,AST_Expression_Call*r
     cg->scope->next_offset=saved_next_off;
 }
 
+/* for item in list_expr: body
+   Emits:
+     len  = list.len(lst)
+     i    = 0
+     loop: if i >= len goto end
+       item = list.get(lst, i)
+       body
+       i += 1
+       goto loop
+     end:
+*/
+static void cg_for_list(CodeGen*cg,AST_Statement_For*stmt){
+    const char*iter_name=stmt->iterator?stmt->iterator->value:"__it";
+    int saved_next_off=cg->scope->next_offset;
+    int saved_break=cg->break_patch_count;
+    int saved_cont=cg->continue_patch_count;
+
+    /* allocate: lst_slot, len_slot, i_slot */
+    int lst_slot=cg->scope->next_offset; cg->scope->next_offset+=8;
+    int len_slot=cg->scope->next_offset; cg->scope->next_offset+=8;
+    int i_slot  =cg->scope->next_offset; cg->scope->next_offset+=8;
+    if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+
+    /* eval iterable -> rax, store in lst_slot */
+    cg_expr(cg,stmt->iterable);
+    emit_store_rax(&cg->code,lst_slot);
+
+    /* len = list.len(lst) */
+    emit_load_rcx(&cg->code,lst_slot);
+    cg_call_extern(cg,g_fn_list_len);
+    emit_store_rax(&cg->code,len_slot);
+
+    /* i = 0 */
+    emit_xor_rax_rax(&cg->code);
+    emit_store_rax(&cg->code,i_slot);
+
+    /* define loop variable in scope */
+    Symbol*iter_sym=scope_get(cg->scope,iter_name);
+    if(!iter_sym){
+        iter_sym=scope_define(cg->scope,iter_name,OMNI_TYPE_INT);
+        if(iter_sym->stack_offset>cg->stack_size)cg->stack_size=iter_sym->stack_offset;
+    }
+
+    size_t loop_top=cg->code.size;
+
+    /* if i >= len goto end */
+    emit_load_rax(&cg->code,i_slot);
+    emit_load_rcx(&cg->code,len_slot);
+    emit_cmp_rax_rcx(&cg->code);
+    size_t jge=emit_jge_fwd(&cg->code);
+
+    /* item = list.get(lst, i) */
+    emit_load_rcx(&cg->code,lst_slot);
+    emit_load_rdx(&cg->code,i_slot);
+    cg_call_extern(cg,g_fn_list_get);
+    emit_store_rax(&cg->code,iter_sym->stack_offset);
+
+    /* body */
+    for(int i=0;i<stmt->body->statement_count;i++)
+        cg_stmt(cg,stmt->body->statements[i]);
+
+    /* continue patches land here */
+    size_t inc_top=cg->code.size;
+    for(int i=saved_cont;i<cg->continue_patch_count;i++){
+        int32_t d=(int32_t)(inc_top-(cg->continue_patches[i]+4));
+        patch_u32(&cg->code,cg->continue_patches[i],(uint32_t)d);
+    }
+    cg->continue_patch_count=saved_cont;
+
+    /* i += 1 */
+    emit_load_rax(&cg->code,i_slot);
+    emit_mov_rcx_imm64(&cg->code,1);
+    emit_add_rax_rcx(&cg->code);
+    emit_store_rax(&cg->code,i_slot);
+
+    emit_jmp_back(&cg->code,loop_top);
+    resolve_fwd(&cg->code,jge);
+
+    /* break patches */
+    for(int i=saved_break;i<cg->break_patch_count;i++)
+        resolve_fwd(&cg->code,cg->break_patches[i]);
+    cg->break_patch_count=saved_break;
+
+    cg->scope->next_offset=saved_next_off;
+}
+
 static void cg_for_statement(CodeGen*cg,AST_Statement_For*stmt){
     if(stmt->iterable&&stmt->iterable->type==CALL_EXPRESSION){
         AST_Expression_Call*call=(AST_Expression_Call*)stmt->iterable;
@@ -3555,7 +4268,8 @@ static void cg_for_statement(CodeGen*cg,AST_Statement_For*stmt){
             if(strcmp(fn,"range")==0&&call->argument_count>=1){cg_for_range(cg,stmt,call);return;}
         }
     }
-    fprintf(stderr,"CodeGen Error: for loop only supports 'range(n)' as iterable currently\n");
+    /* Fall through to list iteration for any non-range iterable */
+    cg_for_list(cg,stmt);
 }
 
 static void cg_match_statement(CodeGen*cg,AST_Statement_Match*stmt){
@@ -3633,6 +4347,90 @@ static void cg_stmt(CodeGen*cg,AST_Statement*stmt){
             // This happens inside method bodies where 'set' is not used
             if(ex&&ex->type==INFIX_EXPRESSION){
                 AST_Expression_Infix*inf=(AST_Expression_Infix*)ex;
+                /* ── augmented assignment: x += e, x -= e, etc. ── */
+                /* Desugar: load var, apply op, store back */
+                {
+                    static const char*_aug[]={"++","+=","-=","*=","/=","%=","**=",NULL};
+                    int _is_aug=0; for(int _k=0;_aug[_k];_k++) if(!strcmp(inf->operator,_aug[_k])){_is_aug=1;break;}
+                    if(_is_aug&&inf->left&&inf->left->type==IDENTIFIER){
+                        const char*vn=((AST_Expression_Identifier*)inf->left)->value;
+                        Symbol*sym=scope_get(cg->scope,vn);
+                        if(!sym){sym=scope_define(cg->scope,vn,OMNI_TYPE_INT);
+                                 if(sym->stack_offset>cg->stack_size)cg->stack_size=sym->stack_offset;}
+                        /* eval rhs → tmp slot */
+                        int ts=cg->scope->next_offset;cg->scope->next_offset+=8;
+                        if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                        cg_expr(cg,inf->right); emit_store_rax(&cg->code,ts);
+                        /* load current var into rax */
+                        int _pr=-1;
+                        for(int _ri=0;_ri<cg->reg_var_depth&&_ri<7;_ri++)
+                            if(!strcmp(cg->reg_var_names[_ri],vn)){_pr=_ri;break;}
+                        if(_pr>=0){switch(_pr){case 0:emit_mov_rax_r14(&cg->code);break;case 1:emit_mov_rax_r15(&cg->code);break;case 2:emit_mov_rax_rbx(&cg->code);break;case 3:emit_mov_rax_r12(&cg->code);break;case 4:emit_mov_rax_r13(&cg->code);break;case 5:emit_mov_rax_rsi(&cg->code);break;case 6:emit_mov_rax_rdi(&cg->code);break;}}
+                        else emit_load_rax(&cg->code,sym->stack_offset);
+                        /* load rhs into rcx */
+                        emit_load_rcx(&cg->code,ts);
+                        cg->scope->next_offset-=8;
+                        /* apply op */
+                        const char*op=inf->operator;
+                        if     (!strcmp(op,"+=")) emit_add_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"-=")) emit_sub_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"*=")) emit_imul_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"/=")) emit_idiv_rcx(&cg->code);
+                        else if(!strcmp(op,"%=")) emit_mod_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"**=")){emit_mov_rdx_rcx(&cg->code);emit_mov_rcx_rax(&cg->code);cg_call_extern(cg,g_fn_int_pow);}
+                        /* store result back */
+                        if(_pr>=0){switch(_pr){case 0:emit_u8(&cg->code,0x49);emit_u8(&cg->code,0x89);emit_u8(&cg->code,0xC6);break;case 1:emit_u8(&cg->code,0x49);emit_u8(&cg->code,0x89);emit_u8(&cg->code,0xC7);break;case 2:emit_mov_rbx_rax(&cg->code);break;case 3:emit_mov_r12_rax(&cg->code);break;case 4:emit_mov_r13_rax(&cg->code);break;case 5:emit_mov_rsi_rax(&cg->code);break;case 6:emit_mov_rdi_rax(&cg->code);break;}}
+                        emit_store_rax(&cg->code,sym->stack_offset);
+                        break;
+                    }
+                    /* index write: lst[i] += e  (augmented on index) */
+                    if(_is_aug&&inf->left&&inf->left->type==INDEX_EXPRESSION){
+                        AST_Expression_Index*ix=(AST_Expression_Index*)inf->left;
+                        /* eval list ptr */
+                        int ls=cg->scope->next_offset;cg->scope->next_offset+=8;
+                        int is2=cg->scope->next_offset;cg->scope->next_offset+=8;
+                        int rs=cg->scope->next_offset;cg->scope->next_offset+=8;
+                        if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                        cg_expr(cg,ix->left);emit_store_rax(&cg->code,ls);
+                        cg_expr(cg,ix->index);emit_store_rax(&cg->code,is2);
+                        cg_expr(cg,inf->right);emit_store_rax(&cg->code,rs);
+                        /* read current: list.get(lst, idx) */
+                        emit_load_rcx(&cg->code,ls);emit_load_rdx(&cg->code,is2);
+                        cg_call_extern(cg,g_fn_list_get);
+                        emit_load_rcx(&cg->code,rs);
+                        const char*op=inf->operator;
+                        if     (!strcmp(op,"+=")) emit_add_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"-=")) emit_sub_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"*=")) emit_imul_rax_rcx(&cg->code);
+                        else if(!strcmp(op,"/=")) emit_idiv_rcx(&cg->code);
+                        else if(!strcmp(op,"%=")) emit_mod_rax_rcx(&cg->code);
+                        /* store back: list.set(lst, idx, val) */
+                        int vs=cg->scope->next_offset;cg->scope->next_offset+=8;
+                        if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                        emit_store_rax(&cg->code,vs);
+                        emit_load_rcx(&cg->code,ls);emit_load_rdx(&cg->code,is2);emit_load_r8(&cg->code,vs);
+                        cg_call_extern(cg,g_fn_list_set);
+                        cg->scope->next_offset-=4*8; break;
+                    }
+                }
+                /* ── index write: lst[i] = val  ── */
+                if(!strcmp(inf->operator,"=")&&inf->left&&inf->left->type==INDEX_EXPRESSION){
+                    AST_Expression_Index*ix=(AST_Expression_Index*)inf->left;
+                    /* Eval and save list ptr, index, value to three stack slots */
+                    int ls=cg->scope->next_offset;cg->scope->next_offset+=8;
+                    int is2=cg->scope->next_offset;cg->scope->next_offset+=8;
+                    int vs=cg->scope->next_offset;cg->scope->next_offset+=8;
+                    if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                    cg_expr(cg,ix->left);  emit_store_rax(&cg->code,ls);
+                    cg_expr(cg,ix->index); emit_store_rax(&cg->code,is2);
+                    cg_expr(cg,inf->right);emit_store_rax(&cg->code,vs);
+                    /* list.set(rcx=lst, rdx=idx, r8=val) */
+                    emit_load_rcx(&cg->code,ls);
+                    emit_load_rdx(&cg->code,is2);
+                    emit_load_r8(&cg->code,vs);
+                    cg_call_extern(cg,g_fn_list_set);
+                    cg->scope->next_offset-=24; break;
+                }
                 if(!strcmp(inf->operator,"=")&&inf->left&&inf->left->type==MEMBER_ACCESS_EXPRESSION){
                     AST_Expression_MemberAccess*ma=(AST_Expression_MemberAccess*)inf->left;
                     if(ma->object&&ma->object->type==IDENTIFIER){
@@ -3651,6 +4449,63 @@ static void cg_stmt(CodeGen*cg,AST_Statement*stmt){
                             }
                         }
                     }
+                }
+            }
+            /* Augmented assignment: x += e, x -= e, x *= e, x /= e, x %= e, x **= e
+               Parsed as INFIX with op "+=" etc, lhs = IDENTIFIER.
+               We desugar: load x, eval rhs → rcx, op, store x. */
+            if(ex&&ex->type==INFIX_EXPRESSION){
+                AST_Expression_Infix*ai=(AST_Expression_Infix*)ex;
+                const char*aop=ai->operator;
+                int is_aug=(!strcmp(aop,"+=")||!strcmp(aop,"-=")||!strcmp(aop,"*=")||
+                            !strcmp(aop,"/=")||!strcmp(aop,"%=")||!strcmp(aop,"**="));
+                if(is_aug&&ai->left&&ai->left->type==IDENTIFIER){
+                    const char*vn=((AST_Expression_Identifier*)ai->left)->value;
+                    Symbol*sym=scope_get(cg->scope,vn);
+                    if(sym){
+                        /* eval rhs first → rax, then move to rcx */
+                        cg_expr(cg,ai->right); emit_mov_rcx_rax(&cg->code);
+                        /* load lhs into rax */
+                        emit_load_rax(&cg->code,sym->stack_offset);
+                        /* apply op */
+                        if(!strcmp(aop,"+="))      emit_add_rax_rcx(&cg->code);
+                        else if(!strcmp(aop,"-=")) emit_sub_rax_rcx(&cg->code);
+                        else if(!strcmp(aop,"*=")) emit_imul_rax_rcx(&cg->code);
+                        else if(!strcmp(aop,"/=")) emit_idiv_rcx(&cg->code);
+                        else if(!strcmp(aop,"%=")) emit_mod_rax_rcx(&cg->code);
+                        else if(!strcmp(aop,"**=")){
+                            /* pow(rax_base, rcx_exp): move rax->rcx_base, rdx->exp already in rcx */
+                            emit_mov_rdx_rcx(&cg->code); emit_mov_rcx_rax(&cg->code);
+                            cg_call_extern(cg,g_fn_math_pow);
+                        }
+                        emit_store_rax(&cg->code,sym->stack_offset);
+                        break;
+                    }
+                }
+                /* Augmented on index target: obj[i] += e — handled by cg_expr fall-through */
+            }
+            /* obj[i] = val — INFIX "=" with INDEX_EXPRESSION on left */
+            if(ex&&ex->type==INFIX_EXPRESSION){
+                AST_Expression_Infix*inf2=(AST_Expression_Infix*)ex;
+                if(!strcmp(inf2->operator,"=")&&inf2->left&&inf2->left->type==INDEX_EXPRESSION){
+                    AST_Expression_Index*ix=(AST_Expression_Index*)inf2->left;
+                    /* Eval: obj → s0, idx → s1, val → rax */
+                    int s0=cg->scope->next_offset; cg->scope->next_offset+=8;
+                    int s1=cg->scope->next_offset; cg->scope->next_offset+=8;
+                    if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                    cg_expr(cg,ix->left);  emit_store_rax(&cg->code,s0);
+                    cg_expr(cg,ix->index); emit_store_rax(&cg->code,s1);
+                    cg_expr(cg,inf2->right);  /* val → rax */
+                    /* list.set(rcx=obj, rdx=idx, r8=val) — save val to stack slot s1+8 */
+                    int s2=cg->scope->next_offset; cg->scope->next_offset+=8;
+                    if(cg->scope->next_offset>cg->stack_size)cg->stack_size=cg->scope->next_offset;
+                    emit_store_rax(&cg->code,s2);       /* save val */
+                    emit_load_rcx(&cg->code,s0);        /* rcx = obj */
+                    emit_load_rdx(&cg->code,s1);        /* rdx = idx */
+                    emit_load_r8(&cg->code,s2);         /* r8  = val */
+                    cg_call_extern(cg,g_fn_list_set);
+                    cg->scope->next_offset-=24;
+                    break;
                 }
             }
             cg_expr(cg,ex);
@@ -3722,7 +4577,9 @@ static void cg_fn_body(CodeGen*cg,AST_Statement_FnDef*fn_def){
     FnEntry*fe=fn_find(cg,fn_def->name->value);
     if(!fe){fprintf(stderr,"CodeGen Error: fn_table entry missing for '%s'\n",fn_def->name->value);exit(1);}
     fe->code_offset=cg->code.size;fe->resolved=1;
-    if(fe->is_inline)return;
+    /* NOTE: do NOT return early for inline fns — we must always emit the fn body.
+       Inlining is a call-site optimisation only; the body must exist for cases
+       where the inline path is skipped (e.g. 0-arg call to a 1-param fn). */
     BETA_TRACE_CG("fn_body '%s' params=%d offset=%zu",fn_def->name->value,fn_def->parameter_count,fe->code_offset);
 
     /* REGISTER ALLOCATOR: analyze body BEFORE emitting prologue.
@@ -3965,9 +4822,9 @@ int codegen_compile(CodeGen*cg,AST_Program*program){
             class_register(cg,(AST_Statement_ClassDef*)s);
         }
     }
-    // PASS 2: JMP over fn bodies
+    // PASS 2: JMP over fn bodies (always emit if there are any fn definitions at all)
     size_t jmp_over_fns=0;
-    int has_real_fns=0;for(int i=0;i<cg->fn_count;i++)if(!cg->fn_table[i].is_inline)has_real_fns=1;
+    int has_real_fns=0;for(int i=0;i<program->statement_count;i++){AST_Statement*s=program->statements[i];if(s&&s->type==FN_DEFINITION)has_real_fns=1;}
     if(has_real_fns)jmp_over_fns=emit_jmp_fwd(&cg->code);
     // PASS 3: fn bodies + class method bodies
     for(int i=0;i<program->statement_count;i++){
