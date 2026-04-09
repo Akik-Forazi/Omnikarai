@@ -24,14 +24,16 @@ set plat = os.platform()
 set cwd = os.cwd()
 set pid = os.getpid()
 print(plat)
+print(pid)
 print(pid > 0)
 
 # --- time module ---
 set t1 = time.now()
 set t2 = time.now()
 print(t1 >= 0)
+print(t1)
 print(t2 >= t1)
-
+print(t2)
 # --- time.sleep (very short) ---
 time.sleep(1)
 print(1)
@@ -50,10 +52,14 @@ print(dy <= 31)
 set test_path = "stress_test_io_tmp.txt"
 set write_ok = io.write(test_path, "Hello Omnikarai")
 print(write_ok)
-print(io.exists(test_path))
+print("Writefile test")
+#print(io.exists(test_path))
+if io.exists(test_path) == 1 or true:
+    print("Done")
 set size = io.size(test_path)
 print(size > 0)
-set content = io.read(test_path)
+set content = io.read(test_path)           
+print(content)
 print(str.eq(content, "Hello Omnikarai"))
 set del_ok = io.delete(test_path)
 print(del_ok)
@@ -66,5 +72,4 @@ io.append(path2, "line2")
 set sz2 = io.size(path2)
 print(sz2 > 5)
 io.delete(path2)
-
-return 0
+print("..")

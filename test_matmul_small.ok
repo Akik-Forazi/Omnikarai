@@ -1,4 +1,3 @@
-use numrai.matmul_sum
+use ai.dot as dot 
 
-set result = matmul_sum(4)
-print(result)
+print(dot(12))

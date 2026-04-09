@@ -1,5 +1,5 @@
 // ============================================================
-//  OMNIKARAI Compiler — omnicc  v6.1
+//  OMNIKARAI Compiler — omnicc  v6.02.24
 //  Windows x64 — No LLVM — No runtime dependency
 //
 //  Usage:
@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <time.h>
+#include <time.h>          /* BUG-006 fix: include before windows.h */
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -46,9 +46,10 @@ extern int g_beta;
 // ── Version banner ───────────────────────────────────────────
 static void print_version(void) {
     fprintf(stderr,
-        "Omnikarai Compiler (omnicc) v6.1\n"
+        "Omnikarai Compiler (omnicc) v6.02.24\n"
         "  x86-64 native code | Windows | No LLVM | No dependencies\n"
-        "  Modules: time, datetime, math, os, io, sys, list, str, ai\n"
+        "  Modules: time, datetime, math, os, io, sys, list, str, ai, numrai\n"
+        "  Package manager: omnip v6.0.0  |  Registry: https://opi-nine.vercel.app\n"
     );
 }
 

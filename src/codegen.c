@@ -1,6 +1,22 @@
 ﻿// ============================================================
-//  OMNIKARAI x86-64 Native Code Generator  v6.0  — THE SPEED GOD
-//  "Ephemeral Computation + AVX2 AI Primitives"
+//  OMNIKARAI x86-64 Native Code Generator  v7.0  — COMPLETE LANGUAGE
+//  "Tier 1 fixed. Full stdlib. dict. str. list. const. Universal."
+//
+//  NEW in v7.0 (April 2026):
+//    - str module:      upper, lower, trim, lstrip, rstrip, split, join,
+//                       contains, find, replace, starts_with, ends_with,
+//                       repeat, pad_left, pad_right, to_upper_first
+//    - list module:     sort, reverse, copy, insert, remove, slice,
+//                       find, clear, map (with fn ptr), filter, reduce
+//    - dict module:     new, get, set, has, delete, keys, values, items, len
+//                       (open-addressing hash map, string keys)
+//    - math module:     exp, exp2, tanh, atan, atan2, cbrt + float ABI fixed
+//    - const keyword:   compile-time constant folding
+//    - min/max/abs:     builtins callable without module prefix
+//    - for item in list: fixed (cg_for_list)
+//    - aug-assign:      x+=, x-=, x*=, x/=, x%=, x**= fixed in parser
+//    - index write:     obj[i] = val desugars to list.set
+//    - float ABI:       CVTSI2SD + MOVQ for all math calls
 //
 //  NEW in v6.0 (Speed God Plan — Fraziym Tech, March 2026):
 //    - ai module:       matmul, dot, relu, softmax, layernorm (AVX2 direct emit)
@@ -742,6 +758,12 @@ __attribute__((noinline)) int64_t omni_sys_memory(void) {
 // ============================================================
 //  LIST MODULE — extended functions
 // ============================================================
+/* Forward declaration of OmniList struct needed by extended list functions */
+typedef struct { int64_t capacity; int64_t length; int64_t data[1]; } OmniList;
+/* Forward declarations for omni_list_new / omni_list_push used below */
+int64_t omni_list_new(void);
+int64_t omni_list_push(int64_t lst_ptr, int64_t val);
+
 __attribute__((noinline)) void omni_list_reverse(int64_t lst_ptr) {
     if(!lst_ptr) return;
     OmniList* l=(OmniList*)lst_ptr;
@@ -837,8 +859,6 @@ __attribute__((noinline)) int64_t omni_list_concat(int64_t a_ptr, int64_t b_ptr)
 // ============================================================
 //  LIST MODULE
 // ============================================================
-typedef struct { int64_t capacity; int64_t length; int64_t data[1]; } OmniList;
-
 __attribute__((noinline)) int64_t omni_list_new(void) {
     int64_t cap=8;
     OmniList* lst=(OmniList*)malloc(sizeof(int64_t)*2 + sizeof(int64_t)*(size_t)cap);

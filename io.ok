@@ -1,0 +1,10 @@
+use io
+use os
+use sys
+use time
+use datetime
+
+print(sys.version() + "\n " + sys.arch() + "\n\n " + sys.bits() + "\r")
+
+set content = "nobody does a hello world"
+print(str.eq(content, "hello") + " done")

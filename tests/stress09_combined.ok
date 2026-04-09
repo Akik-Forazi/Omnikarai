@@ -156,6 +156,5 @@ assert(1 == 1, "math broken")
 assert(factorial(5) == 120, "factorial broken")
 assert(fib(10) == 55, "fib broken")
 assert(is_prime(97) == 1, "prime broken")
-
-print(1)
+print("End of test")
 return 0

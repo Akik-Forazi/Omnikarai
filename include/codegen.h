@@ -157,6 +157,17 @@ typedef struct {
     int          eph_last_store_off;   // stack offset of last emit_store_rax (-1 = none)
     int          eph_last_store_reg;   // 0=RAX, 1=RCX, 2=RDX (which reg held the value)
     size_t       eph_store_code_pos;   // code position of the store instruction
+
+    // ── Module alias table ───────────────────────────────────────────────────
+    // Populated by `use X as Y` statements.  When a call `Y.method()` is
+    // encountered, the namespace Y is resolved to its canonical module name X
+    // before dispatch.  Supports up to 32 simultaneous aliases.
+    // e.g. "use numrai as np"  → alias_from[i]="np", alias_to[i]="numrai"
+    // e.g. "use math as m"     → alias_from[i]="m",  alias_to[i]="math"
+#define MAX_MODULE_ALIASES 32
+    char         alias_from[MAX_MODULE_ALIASES][64];
+    char         alias_to  [MAX_MODULE_ALIASES][64];
+    int          alias_count;
 } CodeGen;
 
 // ============================================================
