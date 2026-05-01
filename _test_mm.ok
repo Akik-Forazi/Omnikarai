@@ -1,3 +1,4 @@
+use time
 fn matmul_sum(n):
     set total = 0
     set i = 0
@@ -15,6 +16,6 @@ fn matmul_sum(n):
             set j = j + 1
         set i = i + 1
     return total
-
+    
 print(matmul_sum(4))
 print(matmul_sum(32))

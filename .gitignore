@@ -60,3 +60,6 @@ desktop.ini
 .idea/
 *.suo
 *.user
+
+# openclaw noise
+.openclaw/

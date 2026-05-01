@@ -1,11 +1,10 @@
 [metadata]
-name        = "omniwin"
-version     = "0.1.0"
-description = "A short description"
-author      = "Your Name"
+name        = "omnikarai"
+version     = "6.02.24"
+description = "Omnikarai — native x86-64 compiler for Windows, no dependencies"
+author      = "Akik Fuad | Fraziym Tech & AI"
 license     = "MIT"
-homepage    = ""
-repository  = ""
+homepage    = "https://opi-nine.vercel.app"
+repository  = "https://github.com/Akik-Forazi/Omnikarai"
 
 [dependencies]
-# math = ">=1.0"

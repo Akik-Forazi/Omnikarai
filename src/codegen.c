@@ -541,10 +541,10 @@ __attribute__((noinline)) int64_t omni_io_size(const char* path) {
 // ============================================================
 //  SYS MODULE
 // ============================================================
-__attribute__((noinline)) const char* omni_sys_version(void)   { return "Omnikarai v6.1 (x86-64 Windows)"; }
+__attribute__((noinline)) const char* omni_sys_version(void)   { return "Omnikarai v6.02.24 (x86-64 Windows)"; }
 __attribute__((noinline)) const char* omni_sys_platform(void)  { return "windows-x64"; }
 __attribute__((noinline)) const char* omni_sys_arch(void)      { return "x86_64"; }
-__attribute__((noinline)) const char* omni_sys_omni_ver(void)  { return "6.1.0"; }
+__attribute__((noinline)) const char* omni_sys_omni_ver(void)  { return "6.02.24"; }
 __attribute__((noinline)) int64_t     omni_sys_bits(void)      { return 64; }
 
 // ============================================================
@@ -3388,7 +3388,9 @@ static void cg_expr(CodeGen*cg,AST_Expression*expr){
             if(call->function&&call->function->type==MEMBER_ACCESS_EXPRESSION){
                 AST_Expression_MemberAccess*ma=(AST_Expression_MemberAccess*)call->function;
                 if(ma->object&&ma->object->type==IDENTIFIER){
-                    const char*ns=((AST_Expression_Identifier*)ma->object)->value;
+                    const char*ns_raw=((AST_Expression_Identifier*)ma->object)->value;
+                    /* Resolve alias: "use math as m" -> m.sqrt becomes math.sqrt */
+                    const char*ns=alias_resolve(cg,ns_raw);
                     // Check if ns is an instance variable whose type maps to a class
                     Symbol*inst_sym=scope_get(cg->scope,ns);
                     ClassEntry*ce=NULL;
@@ -3713,7 +3715,7 @@ static void cg_set_statement(CodeGen*cg,AST_Statement_Set*stmt){
     /* Check if this variable is pinned to a register — store to register, not stack */
     {
         int _preg=-1;
-        for(int _ri=0;_ri<cg->reg_var_depth&&_ri<5;_ri++){
+        for(int _ri=0;_ri<cg->reg_var_depth&&_ri<7;_ri++){
             if(strcmp(cg->reg_var_names[_ri],stmt->name->value)==0){_preg=_ri;break;}
         }
         if(_preg>=0){
@@ -4331,7 +4333,19 @@ static void cg_return_statement(CodeGen*cg,AST_Statement_Return*stmt){
 static void cg_break_statement(CodeGen*cg){if(cg->break_patch_count>=MAX_LOOP_PATCHES){fprintf(stderr,"Fatal: too many break\n");exit(1);}cg->break_patches[cg->break_patch_count++]=emit_jmp_fwd(&cg->code);}
 static void cg_continue_statement(CodeGen*cg){if(cg->continue_patch_count>=MAX_LOOP_PATCHES){fprintf(stderr,"Fatal: too many continue\n");exit(1);}cg->continue_patches[cg->continue_patch_count++]=emit_jmp_fwd(&cg->code);}
 
-static const char* g_known_modules[] = {"time","datetime","math","os","io","sys","list","str","ai","string",NULL};
+static const char* g_known_modules[] = {"time","datetime","math","os","io","sys","list","str","ai","string","numrai",NULL};
+
+// ── Module alias resolution ──────────────────────────────────────────────────
+// Given a namespace token (e.g. "np" or "m"), look it up in cg->alias_from[].
+// If found, return the canonical module name (e.g. "numrai" or "math").
+// Otherwise return the input unchanged.
+static const char* alias_resolve(CodeGen*cg, const char*ns){
+    for(int i=0;i<cg->alias_count;i++)
+        if(strcmp(cg->alias_from[i],ns)==0)
+            return cg->alias_to[i];
+    return ns;
+}
+
 static int is_known_module(const char* name){
     /* 1. built-in modules */
     for(int i=0;g_known_modules[i];i++)
@@ -4544,23 +4558,33 @@ static void cg_stmt(CodeGen*cg,AST_Statement*stmt){
         case CLASS_DEFINITION: break;
         case USE_STATEMENT:{
             AST_Statement_Use*u=(AST_Statement_Use*)stmt;
-            if(!is_known_module(u->module_name)){
+            /* Resolve alias FIRST: if "use math as m", canonical name is "math" */
+            const char* canon = u->module_name;
+            /* Register alias if present: "use math as m" -> alias_from="m", alias_to="math" */
+            if(u->alias && u->alias[0] && cg->alias_count < MAX_MODULE_ALIASES){
+                strncpy_s(cg->alias_from[cg->alias_count], 64, u->alias,    _TRUNCATE);
+                strncpy_s(cg->alias_to  [cg->alias_count], 64, canon,       _TRUNCATE);
+                cg->alias_count++;
+                BETA_TRACE_CG("alias '%s' -> '%s'", u->alias, canon);
+            }
+            if(!is_known_module(canon)){
                 fprintf(stderr,
                     "\nModuleError: Module '%s' not found\n"
-                    "  Built-in modules: time, datetime, math, os, io, sys, list, str, ai\n"
+                    "  Built-in modules: time, datetime, math, os, io, sys, list, str, ai, numrai\n"
                     "  Not installed: run  omnip install %s\n"
-                    "  Search OPI:    run  omnip search %s\n\n",
-                    u->module_name, u->module_name, u->module_name);
+                    "  Search OPI:    omnip search %s\n"
+                    "  Registry:      https://opi-nine.vercel.app\n\n",
+                    canon, canon, canon);
                 exit(1);
             }
             /* Built-in module init */
-            if(strcmp(u->module_name,"time")==0) omni_time_init();
+            if(strcmp(canon,"time")==0) omni_time_init();
             /* Installed package: load .ok files into this CodeGen */
             int is_builtin = 0;
             for(int _i=0;g_known_modules[_i];_i++)
-                if(strcmp(g_known_modules[_i],u->module_name)==0){is_builtin=1;break;}
-            if(!is_builtin) pkg_load_into_cg(cg, u->module_name);
-            BETA_TRACE_CG("use module '%s'",u->module_name);
+                if(strcmp(g_known_modules[_i],canon)==0){is_builtin=1;break;}
+            if(!is_builtin) pkg_load_into_cg(cg, canon);
+            BETA_TRACE_CG("use module '%s'%s%s",canon, u->alias?" as ":" ", u->alias?u->alias:"");
             break;
         }
         default:fprintf(stderr,"CodeGen Warning: unsupported statement type %d\n",stmt->type);break;

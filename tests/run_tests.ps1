@@ -1,5 +1,5 @@
 # ================================================================
-#  Omnikarai v5.0 -- Full Test Suite Runner
+#  Omnikarai v6.02.24 -- Full Test Suite Runner
 #  Run from omniwin directory:
 #    .\tests\run_tests.ps1
 # ================================================================
@@ -17,7 +17,7 @@ function Wht($m)  { Write-Host $m -ForegroundColor White }
 
 Write-Host ""
 Cyn  "======================================================"
-Cyn  "       OMNIKARAI v5.0  --  FULL TEST SUITE           "
+Cyn  "       OMNIKARAI v6.02.24  --  FULL TEST SUITE         "
 Cyn  "======================================================"
 Write-Host ""
 
@@ -48,9 +48,15 @@ $tests = @(
     @{ file="t10_datetime.ok";        name="Datetime module";         expect="*" },
     @{ file="t11_os.ok";              name="OS module";               expect="windows,*,*,1" },
     @{ file="t12_io.ok";              name="IO module";               expect="1,1,Hello Omnikarai,1,1,0" },
-    @{ file="t13_sys.ok";             name="Sys module";              expect="Omnikarai v6.1 (x86-64 Windows),windows-x64,6.1.0,64" },
+    @{ file="t13_sys.ok";             name="Sys module";              expect="Omnikarai v6.02.24 (x86-64 Windows),windows-x64,6.02.24,64" },
     @{ file="t14_list.ok";            name="List module";             expect="0,3,10,20,30,30,2,1,0" },
-    @{ file="t15_assert.ok";          name="Assert builtin";          expect="ok,done" }
+    @{ file="t15_assert.ok";          name="Assert builtin";          expect="ok,done" },
+    @{ file="t16_ai_alloc.ok";        name="AI alloc/set/get/free";   expect="1065353216,1090519040,0" },
+    @{ file="t17_ai_relu.ok";         name="AI relu (AVX2)";          expect="0,0,0,1073741824" },
+    @{ file="t18_ai_dot.ok";          name="AI dot product";          expect="1106771968" },
+    @{ file="t19_ai_matmul.ok";       name="AI matmul";               expect="1077936128,1090519040" },
+    @{ file="t20_ai_dot_i8.ok";       name="AI dot_i8 (INT8)";        expect="36" },
+    @{ file="t21_fixes.ok";           name="Bug fixes (power/str/idx)"; expect="8,100,1,hello,world,done,10,99,15" }
 )
 
 # ----------------------------------------------------------------
@@ -149,7 +155,7 @@ Write-Host ("  Results: {0}/{1} passed  |  {2} failed  |  {3} crashed" -f $pass,
 Write-Host ""
 
 if ($fail -eq 0 -and $crash -eq 0) {
-    Grn "  ALL TESTS PASSED -- Omnikarai v5.0 is working correctly!"
+    Grn "  ALL TESTS PASSED -- Omnikarai v6.02.24 is working correctly!"
 } else {
     Red "  SOME TESTS FAILED -- see above"
     Write-Host ""

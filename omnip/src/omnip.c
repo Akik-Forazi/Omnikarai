@@ -1,5 +1,5 @@
 /* =============================================================
-   omnip v5.2 - Omnikarai Package Manager
+   omnip v6.0.0 - Omnikarai Package Manager
    Fraziym Tech & AI | 2026  |  https://opi-nine.vercel.app
 
    Inspired by pip's wheel/RECORD model:
@@ -19,7 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define OMNIP_VERSION  "5.2.0"
+#define OMNIP_VERSION  "6.0.0"
 #define OPI_HOST       L"opi-nine.vercel.app"
 #define OPI_PORT       INTERNET_DEFAULT_HTTPS_PORT
 #define SITE_PKGS      "Programs\\omnikarai\\site-packages"
@@ -221,7 +221,7 @@ typedef struct { char *body; DWORD len; int status; } HttpResp;
 static HttpResp http_req(const wchar_t *method, const wchar_t *path,
                          const char *body_utf8, const char *token) {
     HttpResp r = {NULL, 0, 0};
-    HINTERNET ses = WinHttpOpen(L"omnip/5.2", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET ses = WinHttpOpen(L"omnip/6.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!ses) return r;
     HINTERNET con = WinHttpConnect(ses, OPI_HOST, OPI_PORT, 0);
