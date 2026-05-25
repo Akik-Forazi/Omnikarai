@@ -63,3 +63,8 @@ desktop.ini
 
 # openclaw noise
 .openclaw/
+.gitnexus
+
+# Claude noise
+.claude/
+CLAUDE.md
